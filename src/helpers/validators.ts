@@ -81,3 +81,14 @@ export function asDate(input: any): Date {
   const parsed = (input ? new Date(input) : undefined);
   return parsed;
 }
+
+/**
+ * Converts the input to a string.
+ * @param input - The input which should be converted.
+ * @returns The parsed string.
+ * @throws TypeError - If the input is not a valid string.
+ */
+export function asString(input: any): string {
+  if (typeof input === 'string') return input as string;
+  throw new TypeError(`Input '${input}' is not a string.`);
+}
