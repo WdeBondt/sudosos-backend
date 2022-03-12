@@ -79,6 +79,10 @@ export default class BannerController extends BaseController {
           policy: async (req) => this.roleManager.can(req.token.roles, 'create', 'all', 'Banner', ['*']),
           handler: this.uploadBannerImage.bind(this),
         },
+        PATCH: {
+          policy: async (req) => this.roleManager.can(req.token.roles, 'update', 'all', 'Banner', ['*']),
+          handler: this.uploadBannerImage.bind(this),
+        },
       },
       '/active': {
         GET: {
@@ -154,6 +158,7 @@ export default class BannerController extends BaseController {
   /**
    * Uploads a banner image to the given banner
    * @route POST /banners/{id}/image
+   * @route PATCH /banners/{id}/image
    * @group banners - Operations of banner controller
    * @param {integer} id.path.required - The id of the banner
    * @param {file} file.formData
