@@ -143,14 +143,17 @@ export default class FileService {
     entity: Product | Banner, uploadedFile: UploadedFile, createdBy: User,
   ): Promise<ProductImage> {
     let entityImage = entity.image;
-
     if (entityImage == null) {
       entityImage = Object.assign(new BaseFile(), {
         downloadName: '',
         createdBy,
         location: '',
       });
-      await ProductImage.save(entityImage);
+      if (entity instanceof Product) {
+        await ProductImage.save(entityImage);
+      } else {
+        await BannerImage.save(entityImage);
+      }
     } else {
       // If the file does exist, we first have to remove it from storage
       await this.removeFile(entityImage);
@@ -162,7 +165,11 @@ export default class FileService {
     entityImage.downloadName = path.parse(entityImage.location).base;
     // eslint-disable-next-line no-param-reassign
     entity.image = entityImage;
-    await ProductImage.save(entityImage);
+    if (entity instanceof Product) {
+      await ProductImage.save(entityImage);
+    } else {
+      await BannerImage.save(entityImage);
+    }
     await entity.save();
     return entityImage;
   }
