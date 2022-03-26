@@ -15,19 +15,16 @@
  *  You should have received a copy of the GNU Affero General Public License
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { DineroObjectRequest } from './dinero-request';
 
 /**
- * @typedef UpdatePointOfSaleRequest
- * @property {string} name.required - Name of the POS
- * @property {string} startDate.required - Date from which the POS is active
- * @property {string} endDate - Date from which the POS is no longer active
- * @property {Array.<number>} containers - IDs of the containers to add to the POS
- * @property {boolean} useAuthentication - Whether the POS requires authentication or not.
+ * @typedef PayoutRequestRequest
+ * @property {DineroObjectRequest.model} amount.required - The requested amount to be paid out
+ * @property {string} bankAccountNumber.required - The bank account number to transfer the money to
+ * @property {string} bankAccountName.required - The name of the owner of the bank account
  */
-export default interface UpdatePointOfSaleRequest {
-  name: string,
-  startDate: string,
-  endDate: string,
-  containers?: number[],
-  useAuthentication?: boolean,
+export default interface PayoutRequestRequest {
+  amount: DineroObjectRequest;
+  bankAccountNumber: string;
+  bankAccountName: string;
 }

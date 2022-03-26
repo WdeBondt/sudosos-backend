@@ -18,6 +18,7 @@
 import {
   ObjectLiteral, SelectQueryBuilder,
 } from 'typeorm';
+import { asNumber } from './validators';
 
 /**
  * Defines the mapping from properties on the parameter object, to
@@ -51,7 +52,13 @@ export default class QueryFilter {
     Object.keys(mapping).forEach((param: string) => {
       const value = params[param];
       if (value !== undefined) {
-        query.andWhere(`${mapping[param]} = :${param}`);
+        if (Array.isArray(value)) {
+          const parsed = value.length > 0 && typeof value[0] === 'string'
+            ? value.map((s) => `"${s}"`) : value;
+          query.andWhere(`${mapping[param]} in (${parsed.toString()})`);
+        } else {
+          query.andWhere(`${mapping[param]} = :${param}`);
+        }
       }
     });
     return query.setParameters(params);
@@ -79,5 +86,15 @@ export default class QueryFilter {
     });
 
     return where;
+  }
+
+  /**
+   * Extract the given query field and parse it to either undefined, a number or an array of numbers
+   * @param query
+   */
+  public static extractUndefinedNumberOrArray(query: any): undefined | number | number[] {
+    if (query === undefined) return undefined;
+    if (Array.isArray(query)) return query.map((d: any) => asNumber(d));
+    return asNumber(query);
   }
 }

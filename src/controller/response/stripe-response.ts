@@ -16,14 +16,14 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import BaseResponse from './base-response';
+
 /**
- * Creates a new Untargeted Transfer Error can be thrown when creating a transfer.
- * @param message - The error message to use
- * @constructor InvalidTransferError
+ * @typedef {BaseResponse} StripePaymentIntentResponse
+ * @property {string} stripeId.required - ID of the intent in Stripe.
+ * @property {string} clientSecret.required - The client secret of the created Payment Intent.
  */
-export default class InvalidTransferError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidTransferError';
-  }
+export interface StripePaymentIntentResponse extends BaseResponse {
+  stripeId: string;
+  clientSecret: string;
 }

@@ -15,24 +15,25 @@
  *  You should have received a copy of the GNU Affero General Public License
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DineroObject } from 'dinero.js';
-import User from '../../entity/user/user';
-import ProductCategory from '../../entity/product/product-category';
+import {
+  Column, Entity, ManyToOne,
+} from 'typeorm';
+// eslint-disable-next-line import/no-cycle
+import StripeDeposit from './stripe-deposit';
+import BaseEntity from '../base-entity';
 
-/**
- * @typedef UpdateProductRequest
- * @property {number} id.required
- * @property {string} name.required
- * @property {Dinero.model} price.required
- * @property {User.model} owner.required
- * @property {ProductCategory.model} category.required
- * @property {number} alcoholPercentage
- */
-export default interface UpdateProductRequest {
-  id: number,
-  name: string,
-  price: DineroObject,
-  owner: User,
-  category: ProductCategory,
-  alcoholPercentage?: number,
+export enum StripeDepositState {
+  CREATED = 1,
+  PROCESSING = 2,
+  SUCCEEDED = 3,
+  FAILED = 4,
+}
+
+@Entity()
+export default class StripeDepositStatus extends BaseEntity {
+  @ManyToOne(() => StripeDeposit, (deposit) => deposit.depositStatus, { nullable: false })
+  public deposit: StripeDeposit;
+
+  @Column()
+  public state: StripeDepositState;
 }

@@ -26,17 +26,21 @@ import PointOfSale from '../entity/point-of-sale/point-of-sale';
 import PointOfSaleRevision from '../entity/point-of-sale/point-of-sale-revision';
 import QueryFilter, { FilterMapping } from '../helpers/query-filter';
 import UpdatedPointOfSale from '../entity/point-of-sale/updated-point-of-sale';
-import PointOfSaleRequest from '../controller/request/point-of-sale-request';
 import User from '../entity/user/user';
 import Container from '../entity/container/container';
 import { parseUserToBaseResponse } from '../helpers/entity-to-response';
-import UpdatePointOfSaleRequest from '../controller/request/update-point-of-sale-request';
 import UpdatedContainer from '../entity/container/updated-container';
-import UnapprovedContainerError from '../entity/errors/unapproved-container-error';
 import ContainerRevision from '../entity/container/container-revision';
 import ContainerService, { ContainerParameters } from './container-service';
 import { ContainerWithProductsResponse } from '../controller/response/container-response';
 import { PaginationParameters } from '../helpers/pagination';
+import { getIdsAndRequests } from '../helpers/array-splitter';
+import { CreatePointOfSaleParams, UpdatePointOfSaleParams } from '../controller/request/point-of-sale-request';
+import {
+  ContainerParams,
+  CreateContainerParams,
+  UpdateContainerParams,
+} from '../controller/request/container-request';
 
 /**
  * Define point of sale filtering parameters used to filter query results.
@@ -108,17 +112,30 @@ export default class PointOfSaleService {
   private static async asPointOfSaleResponseWithContainers(
     pointOfSale: PointOfSaleResponse | UpdatedPointOfSaleResponse,
   ): Promise<PointOfSaleWithContainersResponse> {
+    const filters: any = { posId: pointOfSale.id };
+    let updated = false;
+    if (Object.prototype.hasOwnProperty.call(pointOfSale, 'revision')) {
+      filters.posRevision = (pointOfSale as PointOfSaleResponse).revision;
+    } else {
+      updated = true;
+    }
+
     const containerIds = (
-      (await ContainerService.getContainers({ posId: pointOfSale.id })).records.map((c) => c.id));
+      (await ContainerService.getContainers(filters))
+        .records.map((c) => ({ id: c.id, revision: c.revision })));
     const containers: ContainerWithProductsResponse[] = [];
     await Promise.all(
       containerIds.map(
-        async (c) => { containers.push(await ContainerService.getProductsResponse(c)); },
+        async (c) => {
+          containers.push(await ContainerService.getProductsResponse(
+            { containerId: c.id, containerRevision: c.revision, updated },
+          ));
+        },
       ),
     );
 
     return {
-      ...pointOfSale,
+      ...pointOfSale as PointOfSaleResponse,
       containers,
     };
   }
@@ -130,7 +147,7 @@ export default class PointOfSaleService {
       .innerJoin(
         PointOfSaleRevision,
         'posrevision',
-        'pos.id = posrevision.pointOfSale',
+        'pos.id = posrevision.pointOfSale.id',
       )
       .innerJoin('pos.owner', 'owner')
       .select([
@@ -178,6 +195,7 @@ export default class PointOfSaleService {
       this.buildGetPointsOfSaleQuery(filters).getCount(),
     ]);
 
+    let records;
     if (filters.returnContainers) {
       const pointOfSales: PointOfSaleWithContainersResponse[] = [];
       await Promise.all(results[0].map(
@@ -189,9 +207,11 @@ export default class PointOfSaleService {
           );
         },
       ));
+      records = pointOfSales;
+    } else {
+      records = results[0].map((rawPointOfSale) => this.asPointOfSaleResponse(rawPointOfSale));
     }
 
-    const records = results[0].map((rawPointOfSale) => this.asPointOfSaleResponse(rawPointOfSale));
     return {
       _pagination: {
         take, skip, count: results[1],
@@ -359,8 +379,11 @@ export default class PointOfSaleService {
 
     const updatedContainers: UpdatedContainer[] = await UpdatedContainer.findByIds(containerIds, { relations: ['container'] });
 
+    // Force approve all containers
     if (updatedContainers.length !== 0) {
-      throw new UnapprovedContainerError(`Point of sale has the unapproved container(s): [${updatedContainers.map((c) => c.container.id)}]`);
+      await Promise.all(updatedContainers.map(
+        (c) => ContainerService.approveContainerUpdate(c.container.id),
+      ));
     }
 
     const containerRevisions: ContainerRevision[] = await ContainerRevision.findByIds(containerIds);
@@ -397,17 +420,26 @@ export default class PointOfSaleService {
    * @param pointOfSaleId - The ID of the PointOfSale to update.
    * @param update - The PointOfSale variables to update.
    */
-  public static async updatePointOfSale(pointOfSaleId: number, update: UpdatePointOfSaleRequest)
+  public static async updatePointOfSale(update: UpdatePointOfSaleParams)
     : Promise<UpdatedPointOfSaleResponse> {
     // Get base PointOfSale
-    const base: PointOfSale = await PointOfSale.findOne(pointOfSaleId, { relations: ['owner'] });
+    const base: PointOfSale = await PointOfSale.findOne(update.id, { relations: ['owner'] });
 
     // Return undefined if base does not exist.
     if (!base) {
       return undefined;
     }
 
-    const containers = update.containers ? await Container.findByIds(update.containers) : [];
+    const { ids, requests } = getIdsAndRequests<ContainerParams>(update.containers);
+    // If the update contains container updates or creations we delegate it.
+    await Promise.all(requests.map((r) => {
+      if (Object.prototype.hasOwnProperty.call(r, 'id')) {
+        return ContainerService.updateContainer((r as UpdateContainerParams));
+      }
+      return ContainerService.createContainer((r as CreateContainerParams));
+    }));
+
+    const containers = update.containers ? await Container.findByIds(ids) : [];
 
     // Create update object
     const updatedPointOfSale = Object.assign(new UpdatedPointOfSale(), {
@@ -431,57 +463,23 @@ export default class PointOfSaleService {
    *
    * @param posRequest - The POS to be created.
    */
-  public static async createPointOfSale(posRequest: PointOfSaleRequest)
-    : Promise<UpdatedPointOfSaleResponse> {
+  public static async createPointOfSale(posRequest: CreatePointOfSaleParams)
+    : Promise<UpdatedPointOfSaleResponse | undefined> {
+    const owner = await User.findOne(posRequest.ownerId);
+
+    if (!owner) return undefined;
+
     const base = Object.assign(new PointOfSale(), {
-      owner: await User.findOne(posRequest.ownerId),
+      owner,
     });
 
-    // Save the base and create update request.
+    // Save the base and update..
     await base.save();
-    return this.updatePointOfSale(base.id, posRequest.update);
-  }
-
-  /**
-   * Verifies whether the PointOfSaleRequest translates to a valid object.
-   * @param {PointOfSaleRequest.model} posRequest - The PointOfSale request
-   * @returns {boolean} whether the request is valid
-   */
-  public static async verifyPointOfSale(posRequest: PointOfSaleRequest | UpdatePointOfSaleRequest)
-    : Promise<boolean> {
-    let update: UpdatePointOfSaleRequest;
-    if (Object.prototype.hasOwnProperty.call(posRequest, 'update')) {
-      update = (posRequest as PointOfSaleRequest).update;
-    } else {
-      update = (posRequest as UpdatePointOfSaleRequest);
-    }
-
-    const startDate = Date.parse(update.startDate);
-    const endDate = Date.parse(update.endDate);
-
-    const check: boolean = update.name !== ''
-        // Dates must exist.
-        && !Number.isNaN(startDate) && !Number.isNaN(endDate)
-        // End date must be in the future.
-        && endDate > new Date().getTime()
-        // End date must be after start date.
-        && endDate > startDate;
-
-    if (Object.prototype.hasOwnProperty.call(posRequest, 'ownerId')) {
-      // Owner must exist.
-      if (await User.findOne({ id: (posRequest as PointOfSaleRequest).ownerId }) === undefined) {
-        return false;
-      }
-    }
-
-    if (!check) return false;
-
-    if (update.containers) {
-      const containers = await Container.findByIds(update.containers);
-      if (containers.length !== update.containers.length) return false;
-    }
-
-    return true;
+    const update: UpdatePointOfSaleParams = {
+      ...posRequest,
+      id: base.id,
+    };
+    return this.updatePointOfSale(update);
   }
 
   /**
