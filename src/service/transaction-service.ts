@@ -45,6 +45,7 @@ import { DineroObjectResponse } from '../controller/response/dinero-response';
 import BalanceService from './balance-service';
 import { asDate, asNumber } from '../helpers/validators';
 import { PaginationParameters } from '../helpers/pagination';
+import InvalidTransactionError from '../entity/errors/transactions/invalid-transaction-error';
 
 export interface TransactionFilterParameters {
   transactionId?: number | number[],
@@ -158,13 +159,13 @@ export default class TransactionService {
     // check if fields provided in subtransactionrow
     if (!req.product || !req.price
         || !req.amount || req.amount <= 0 || !Number.isInteger(req.amount)) {
-      return false;
+      throw new InvalidTransactionError('required fields of the sub transaction row are missing');
     }
 
     // check if product is in the container
     if (!container.products.some((product) => product.product.id === req.product.id
-      && product.revision === req.product.revision)) {
-      return false;
+        && product.revision === req.product.revision)) {
+      throw new InvalidTransactionError(`provided product with id ${req.product} was not found in the container`);
     }
 
     // check if product exists
@@ -173,12 +174,16 @@ export default class TransactionService {
       product: { id: req.product.id },
     }, { relations: ['product'] });
     if (!product) {
-      return false;
+      throw new InvalidTransactionError(`provided product with id ${req.product} was not found in the database`);
     }
 
     // check whether the request price corresponds to the database price
     const cost = await this.getTotalCost([req]);
-    return this.dineroEq(req.price, cost);
+    if (!this.dineroEq(req.price, cost)) {
+      throw new InvalidTransactionError('provided price in sub transaction row does not correspond with the database price');
+    }
+
+    return true;
   }
 
   /**
@@ -194,19 +199,19 @@ export default class TransactionService {
     // check if fields provided in the transaction
     if (!req.to || !req.container || !req.price
         || !req.subTransactionRows || req.subTransactionRows.length === 0) {
-      return false;
+      throw new InvalidTransactionError('required fields of the sub transaction are missing');
     }
 
     // check if container is in the point of sale
     if (!pointOfSale.containers.some((container) => container.container.id === req.container.id
         && container.revision === req.container.revision)) {
-      return false;
+      throw new InvalidTransactionError(`provided container with id ${req.container.id} was not found in the point of sale`);
     }
 
     // check if to user exists, check if they are active in database if the call is not an update
     const user = await User.findOne(req.to);
     if (!user || (!isUpdate && !user.active)) {
-      return false;
+      throw new InvalidTransactionError('"to" user is not active or does not exist');
     }
 
     // check whether the request price corresponds to the database price
@@ -214,7 +219,7 @@ export default class TransactionService {
     req.subTransactionRows.forEach((row) => rows.push(row));
     const cost = await this.getTotalCost(rows);
     if (!this.dineroEq(req.price, cost)) {
-      return false;
+      throw new InvalidTransactionError('provided price in sub transaction does not correspond with the database price');
     }
 
     // check if container exists in database and get products for subtransactionrow check
@@ -224,7 +229,7 @@ export default class TransactionService {
     }, { relations: ['container', 'products'] });
 
     if (!container) {
-      return false;
+      throw new InvalidTransactionError(`provided container with id ${req.container.id} was not found in the database`);
     }
 
     // verify subtransaction rows
@@ -247,7 +252,7 @@ export default class TransactionService {
     if (!req.from || !req.createdBy
         || !req.subTransactions || req.subTransactions.length === 0
         || !req.pointOfSale || !req.price) {
-      return false;
+      throw new InvalidTransactionError('required fields of the transaction are missing');
     }
 
     // check existence of users and whether they are active
@@ -259,8 +264,8 @@ export default class TransactionService {
     // don't check active users if verification is done on an update
     const users = await User.findByIds(ids);
     if (users.length !== ids.length
-      || (!isUpdate && !users.every((user) => user.active))) {
-      return false;
+        || (!isUpdate && !users.every((user) => user.active))) {
+      throw new InvalidTransactionError('a provided user is not active or does not exist');
     }
 
     // check whether the request price corresponds to the database price
@@ -268,7 +273,7 @@ export default class TransactionService {
     req.subTransactions.forEach((sub) => sub.subTransactionRows.forEach((row) => rows.push(row)));
     const cost = await this.getTotalCost(rows);
     if (!this.dineroEq(req.price, cost)) {
-      return false;
+      throw new InvalidTransactionError('provided price in transaction does not correspond with the database price');
     }
 
     // check if point of sale exists in database and get containers for subtransaction check
@@ -278,7 +283,7 @@ export default class TransactionService {
     }, { relations: ['pointOfSale', 'containers'] });
 
     if (!pointOfSale) {
-      return false;
+      throw new InvalidTransactionError('provided point of sale not found');
     }
 
     // verify subtransactions

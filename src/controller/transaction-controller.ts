@@ -28,6 +28,7 @@ import { parseRequestPagination } from '../helpers/pagination';
 import { TransactionRequest } from './request/transaction-request';
 import Transaction from '../entity/transactions/transaction';
 import User from '../entity/user/user';
+import InvalidTransactionError from '../entity/errors/transactions/invalid-transaction-error';
 
 export default class TransactionController extends BaseController {
   private logger: Logger = log4js.getLogger('TransactionController');
@@ -156,6 +157,9 @@ export default class TransactionController extends BaseController {
       }
     } catch (error) {
       this.logger.error('Could not create transaction:', error);
+      if (error instanceof InvalidTransactionError) {
+        res.status(400).json(error);
+      }
       res.status(500).json('Internal server error.');
     }
   }
