@@ -111,6 +111,21 @@ export default class Gewis {
         Authenticator: {
           get: { own: star },
         },
+        VatGroup: {
+          get: { all: star },
+        },
+        Product: {
+          get: { all: star },
+        },
+        ProductCategory: {
+          get: { all: star },
+        },
+        Transaction: {
+          get: { own: star },
+        },
+        Transfer: {
+          get: { own: star },
+        }
       },
       assignmentCheck: async () => true,
     });
@@ -343,6 +358,9 @@ export default class Gewis {
         Transfer: {
           ...admin,
         },
+        VatGroup: {
+          ...admin,
+        }
       },
       assignmentCheck: async (user: User) => await AssignedRole.findOne({ where: { role: 'SudoSOS - BAC PM', user } }) !== undefined,
     });
