@@ -28,6 +28,7 @@ import ProductImage from '../file/product-image';
  * @typedef {BaseEntity} Product
  * @property {integer} currentRevision - The current revision of the product.
  * Can be null if no revision exists.
+ * @property {boolean} deleted - Whether this product is soft-deleted.
  * @property {User.model} owner.required - The owner of the product.
  * @property {ProductImage.model} image - The image of the product.
  */
@@ -37,6 +38,9 @@ export default class Product extends BaseEntity {
     nullable: true,
   })
   public currentRevision: number;
+
+  @Column({ default: false })
+  public deleted: boolean;
 
   @ManyToOne(() => User, { nullable: false })
   public owner: User;

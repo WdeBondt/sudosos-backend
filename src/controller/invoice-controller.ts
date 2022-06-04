@@ -243,7 +243,7 @@ export default class InvoiceController extends BaseController {
    * @security JWT
    * @param {integer} id.path.required - The id of the invoice which should be deleted
    * @return {string} 404 - Invoice not found
-   * @return {BaseInvoiceResponse.model} 200 - The deleted invoice.
+   * @return {string} 204
    * @returns {string} 500 - Internal server error
    */
   // TODO Deleting of invoices that are not of state CREATED?

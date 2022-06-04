@@ -568,11 +568,23 @@ export default class ProductService {
     return (await this.getProducts({ productId })).records[0];
   }
 
+  /**
+   * Updates a product without making an UpdatedProduct.
+   * @param updateRequest
+   */
   public static async directProductUpdate(updateRequest: UpdateProductParams)
     : Promise<ProductResponse> {
     const base: Product = await Product.findOne(updateRequest.id);
     await this.applyProductUpdate(base, updateRequest);
     return (this.getProducts({ productId: base.id }).then((p) => p.records[0]));
+  }
+
+  /**
+   * (Soft-)Deletes a product
+   * @param productId
+   */
+  public static async deleteProduct(productId: number) {
+    // pass
   }
 
   /**
