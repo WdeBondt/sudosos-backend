@@ -517,7 +517,7 @@ export default class ContainerService {
   /**
    * Test to see if the user can view a specified container
    * @param userId - The User to test
-   * @param containerId - The container to view
+   * @param container - The container to view
    */
   public static async canViewContainer(userId: number, container: Container)
     : Promise<ContainerVisibility> {

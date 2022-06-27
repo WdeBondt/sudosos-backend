@@ -440,15 +440,16 @@ export default class PointOfSaleService {
     const promises: Promise<PointOfSaleWithContainersResponse>[] = [];
 
     posIds.forEach((pointOfSaleId) => {
-      PointOfSaleService.getPointsOfSale({ pointOfSaleId, returnContainers: true }).then((res) => {
-        const p = res.records[0] as PointOfSaleWithContainersResponse;
-        const update: UpdatePointOfSaleParams = {
-          containers: p.containers.map((c) => c.id),
-          name: p.name,
-          id: pointOfSaleId,
-        };
-        promises.push(PointOfSaleService.directPointOfSaleUpdate(update));
-      });
+      promises.push(PointOfSaleService.getPointsOfSale({ pointOfSaleId, returnContainers: true })
+        .then((res) => {
+          const p = res.records[0] as PointOfSaleWithContainersResponse;
+          const update: UpdatePointOfSaleParams = {
+            containers: p.containers.map((c) => c.id),
+            name: p.name,
+            id: pointOfSaleId,
+          };
+          return PointOfSaleService.directPointOfSaleUpdate(update);
+        }));
     });
 
     await Promise.all(promises);

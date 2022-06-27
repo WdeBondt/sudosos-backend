@@ -628,18 +628,19 @@ export default class ProductService {
     const posIds = new Set<number>();
 
     containers.forEach((c) => {
-      ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => {
+      promises.push(ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => {
         const update: UpdateContainerParams = {
           products: revision.products.map((p) => p.product.id),
           public: c.public,
           name: revision.name,
           id: c.id,
         };
-        ContainerService.getPOSContainingContainer(c.id).then((ids) => {
-          ids.forEach((id) => posIds.add(id));
-        });
-        promises.push(ContainerService.directContainerUpdate(update, false));
-      });
+        return ContainerService.directContainerUpdate(update, false).then((u) => (
+          (ContainerService.getPOSContainingContainer(c.id).then((ids) => {
+            ids.forEach((id) => posIds.add(id));
+            return u;
+          }))));
+      }));
     });
 
     await Promise.all(promises);
