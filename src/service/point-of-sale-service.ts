@@ -431,6 +431,30 @@ export default class PointOfSaleService {
   }
 
   /**
+   * Function that refreshes the given point of sales.
+   * Refreshing means that all the containers will be updated
+   *    to the latest revision.
+   * @param posIds
+   */
+  public static async refreshPointOfSales(posIds: number[]) {
+    const promises: Promise<PointOfSaleWithContainersResponse>[] = [];
+
+    posIds.forEach((pointOfSaleId) => {
+      PointOfSaleService.getPointsOfSale({ pointOfSaleId, returnContainers: true }).then((res) => {
+        const p = res.records[0] as PointOfSaleWithContainersResponse;
+        const update: UpdatePointOfSaleParams = {
+          containers: p.containers.map((c) => c.id),
+          name: p.name,
+          id: pointOfSaleId,
+        };
+        promises.push(PointOfSaleService.directPointOfSaleUpdate(update));
+      });
+    });
+
+    await Promise.all(promises);
+  }
+
+  /**
    * Revises a point of sale without creating an update
    * @param update - the point of sale update to pass
    */

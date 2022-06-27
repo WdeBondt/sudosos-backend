@@ -41,6 +41,8 @@ import { asBoolean, asDate, asNumber } from '../helpers/validators';
 import ContainerService from './container-service';
 import { UpdateContainerParams } from '../controller/request/container-request';
 import { BaseVatGroupResponse } from '../controller/response/vat-group-response';
+import { ContainerWithProductsResponse } from '../controller/response/container-response';
+import PointOfSaleService from './point-of-sale-service';
 
 /**
  * Define product filtering parameters used to filter query results.
@@ -584,7 +586,31 @@ export default class ProductService {
    * @param productId
    */
   public static async deleteProduct(productId: number) {
-    // pass
+    const product = await Product.findOne(productId);
+    product.deleted = true;
+    await this.removeProductFromContainers(productId);
+  }
+
+  /**
+   * Function that removes a product from all containers and propagates the update.
+   * @param productId - Product to remove
+   * @private
+   */
+  private static async removeProductFromContainers(productId: number) {
+    const containers = (await ContainerService.getContainers({ productId })).records;
+    for (let i = 0; i < containers.length; i += 1) {
+      const c = containers[i];
+      // eslint-disable-next-line no-await-in-loop
+      await ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => {
+        const update: UpdateContainerParams = {
+          products: revision.products.map((p) => p.product.id).filter((p) => p !== productId),
+          public: c.public,
+          name: revision.name,
+          id: c.id,
+        };
+        await ContainerService.directContainerUpdate(update);
+      });
+    }
   }
 
   /**
@@ -597,20 +623,27 @@ export default class ProductService {
    */
   public static async propagateProductUpdate(productId: number) {
     const containers = (await ContainerService.getContainers({ productId })).records;
-    // The async-for loop is intentional to prevent race-conditions.
-    // To fix this the good way would be shortlived the structure of POS/Containers will be changed
-    for (let i = 0; i < containers.length; i += 1) {
-      const c = containers[i];
-      // eslint-disable-next-line no-await-in-loop
-      await ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => {
+
+    const promises: Promise<ContainerWithProductsResponse>[] = [];
+    const posIds = new Set<number>();
+
+    containers.forEach((c) => {
+      ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => {
         const update: UpdateContainerParams = {
           products: revision.products.map((p) => p.product.id),
           public: c.public,
           name: revision.name,
           id: c.id,
         };
-        await ContainerService.directContainerUpdate(update);
+        ContainerService.getPOSContainingContainer(c.id).then((ids) => {
+          ids.forEach((id) => posIds.add(id));
+        });
+        promises.push(ContainerService.directContainerUpdate(update, false));
       });
-    }
+    });
+
+    await Promise.all(promises);
+    const ids = Array.from(posIds.values());
+    await PointOfSaleService.refreshPointOfSales(ids);
   }
 }

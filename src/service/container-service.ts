@@ -44,6 +44,7 @@ import {
 import PointOfSaleService from './point-of-sale-service';
 // eslint-disable-next-line import/no-cycle
 import ProductService from './product-service';
+import { PointOfSaleWithContainersResponse } from '../controller/response/point-of-sale-response';
 
 interface ContainerVisibility {
   own: boolean;
@@ -380,7 +381,8 @@ export default class ContainerService {
     return createdContainer;
   }
 
-  public static async applyContainerUpdate(base: Container, updateRequest: UpdateContainerRequest) {
+  public static async applyContainerUpdate(base: Container,
+    updateRequest: UpdateContainerRequest, propagate = true) {
     // Get the latest products
     const products = await Product.findByIds(updateRequest.products);
 
@@ -409,7 +411,7 @@ export default class ContainerService {
     // eslint-disable-next-line no-param-reassign
     base.public = updateRequest.public;
     await base.save();
-    await this.propagateContainerUpdate(base.id);
+    if (propagate) await this.propagateContainerUpdate(base.id);
   }
 
   /**
@@ -484,13 +486,19 @@ export default class ContainerService {
   /**
    * Updates a container by directly creating a revision.
    * @param update - The container update
+   * @param propagate - If the update should be automagically propagated to POS
    */
-  public static async directContainerUpdate(update: UpdateContainerParams)
+  public static async directContainerUpdate(update: UpdateContainerParams, propagate = true)
     : Promise<ContainerWithProductsResponse> {
     const base: Container = await Container.findOne({ where: { id: update.id } });
-    await this.applyContainerUpdate(base, update);
+    await this.applyContainerUpdate(base, update, propagate);
     return (this.getContainers({ containerId: base.id, returnProducts: true })
       .then((c) => c.records[0])) as Promise<ContainerWithProductsResponse>;
+  }
+
+  public static async getPOSContainingContainer(containerId: number): Promise<number[]> {
+    const pos = await PointOfSaleRevision.find({ where: `"PointOfSaleRevision__containers"."containerId" = ${containerId} AND ("PointOfSaleRevision__containers__container"."currentRevision" - 1) = "PointOfSaleRevision__containers"."revision"  AND "PointOfSaleRevision__pointOfSale"."currentRevision" = "PointOfSaleRevision"."revision"`, relations: ['pointOfSale', 'containers', 'containers.container'] });
+    return pos.map((p) => p.pointOfSale.id);
   }
 
   /**
@@ -502,20 +510,8 @@ export default class ContainerService {
    * @param containerId - The container to propagate
    */
   public static async propagateContainerUpdate(containerId: number) {
-    const pos = await PointOfSaleRevision.find({ where: `"PointOfSaleRevision__containers"."containerId" = ${containerId} AND ("PointOfSaleRevision__containers__container"."currentRevision" - 1) = "PointOfSaleRevision__containers"."revision"  AND "PointOfSaleRevision__pointOfSale"."currentRevision" = "PointOfSaleRevision"."revision"`, relations: ['pointOfSale', 'containers', 'containers.container'] });
-
-    // The async-for loop is intentional to prevent race-conditions.
-    // To fix this the good way would be shortlived, the structure of POS/Containers will be changed
-    for (let i = 0; i < pos.length; i += 1) {
-      const p = pos[i];
-      const update: UpdatePointOfSaleParams = {
-        containers: p.containers.map((c) => c.container.id),
-        name: p.name,
-        id: p.pointOfSale.id,
-      };
-      // eslint-disable-next-line no-await-in-loop
-      await PointOfSaleService.directPointOfSaleUpdate(update);
-    }
+    const posIds = await this.getPOSContainingContainer(containerId);
+    await PointOfSaleService.refreshPointOfSales(posIds);
   }
 
   /**
