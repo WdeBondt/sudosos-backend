@@ -511,12 +511,12 @@ describe('ProductController', async (): Promise<void> => {
       expect(res.status).to.equal(404);
     });
     it('should return an HTTP 403 if not admin', async () => {
-      const productCount = await Product.count();
+      const productCount = await Product.count({ where: { deleted: false } });
       const res = await request(ctx.app)
         .delete('/products/1')
         .set('Authorization', `Bearer ${ctx.tokenNoRoles}`);
 
-      expect(await Product.count()).to.equal(productCount);
+      expect(await Product.count({ where: { deleted: false } })).to.equal(productCount);
       expect(res.body).to.be.empty;
 
       expect(res.status).to.equal(403);

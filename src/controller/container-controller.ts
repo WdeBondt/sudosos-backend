@@ -76,6 +76,10 @@ export default class ContainerController extends BaseController {
           policy: async (req) => this.roleManager.can(req.token.roles, 'update', await ContainerController.getRelation(req), 'Container', ['*']),
           handler: this.updateContainer.bind(this),
         },
+        DELETE: {
+          policy: async (req) => this.roleManager.can(req.token.roles, 'delete', await ContainerController.getRelation(req), 'Container', ['*']),
+          handler: this.deleteContainer.bind(this),
+        },
       },
       '/:id(\\d+)/products': {
         GET: {
@@ -158,7 +162,7 @@ export default class ContainerController extends BaseController {
     // Handle request
     try {
       // Check if we should return a 404.
-      const exist = await ContainerRevision.findOne({ where: `containerId = ${containerId}` });
+      const exist = await Container.findOne(containerId, { where: { deleted: false } });
       if (!exist) {
         res.status(404).json('Container not found.');
         return;
@@ -406,7 +410,7 @@ export default class ContainerController extends BaseController {
     // handle request
     try {
       // Container does not exist.
-      if (!await Container.findOne(containerId)) {
+      if (!await Container.findOne(containerId, { where: { deleted: false } })) {
         res.status(404).json('Container not found.');
         return;
       }
@@ -423,6 +427,35 @@ export default class ContainerController extends BaseController {
       res.json(updatedContainer);
     } catch (error) {
       this.logger.error('Could not return container:', error);
+      res.status(500).json('Internal server error.');
+    }
+  }
+
+  /**
+   * Deletes a container.
+   * @route DELETE /containers/{id}
+   * @group containers - Operations of containers controller
+   * @security JWT
+   * @param {integer} id.path.required - The id of the container which should be deleted
+   * @return {string} 404 - container not found
+   * @return {string} 204 - Successfully deleted container
+   * @returns {string} 500 - Internal server error
+   */
+  public async deleteContainer(req: RequestWithToken, res: Response): Promise<void> {
+    const { id } = req.params;
+    const containerId = parseInt(id, 10);
+    this.logger.trace('Delete container', id, 'by user', req.token.user);
+
+    try {
+      const container = await Container.findOne({ where: { id: containerId, deleted: false } });
+      if (!container) {
+        res.status(404).json('Container not found.');
+        return;
+      }
+      await ContainerService.deleteContainer(container);
+      res.status(203).send();
+    } catch (error) {
+      this.logger.error('Could not delete container:', error);
       res.status(500).json('Internal server error.');
     }
   }

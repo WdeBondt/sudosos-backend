@@ -446,7 +446,31 @@ export default class PointOfSaleService {
           const update: UpdatePointOfSaleParams = {
             containers: p.containers.map((c) => c.id),
             name: p.name,
-            id: pointOfSaleId,
+            id: p.id,
+          };
+          return PointOfSaleService.directPointOfSaleUpdate(update);
+        }));
+    });
+
+    await Promise.all(promises);
+  }
+
+  /**
+   * Function that removes the given container from the given point of sales.
+   * @param posIds - The IDs of the points of sale
+   * @param containerId - The container to remove
+   */
+  public static async deleteContainerPointOfSale(posIds: number[], containerId: number) {
+    const promises: Promise<PointOfSaleWithContainersResponse>[] = [];
+
+    posIds.forEach((pointOfSaleId) => {
+      promises.push(PointOfSaleService.getPointsOfSale({ pointOfSaleId, returnContainers: true })
+        .then((res) => {
+          const p = res.records[0] as PointOfSaleWithContainersResponse;
+          const update: UpdatePointOfSaleParams = {
+            containers: p.containers.map((c) => c.id).filter((c) => c !== containerId),
+            name: p.name,
+            id: p.id,
           };
           return PointOfSaleService.directPointOfSaleUpdate(update);
         }));

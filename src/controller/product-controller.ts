@@ -408,13 +408,13 @@ export default class ProductController extends BaseController {
   }
 
   /**
-   * Deletes an invoice.
+   * Deletes a product.
    * @route DELETE /products/{id}
    * @group products - Operations of products controller
    * @security JWT
    * @param {integer} id.path.required - The id of the products which should be deleted
    * @return {string} 404 - product not found
-   * @return {BaseInvoiceResponse.model} 204
+   * @return {string} 204 - Successfully deleted product
    * @returns {string} 500 - Internal server error
    */
   public async deleteProduct(req: RequestWithToken, res: Response): Promise<void> {

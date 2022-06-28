@@ -40,6 +40,7 @@ import {
 } from '../../../src/controller/request/container-request';
 import PointOfSaleService from '../../../src/service/point-of-sale-service';
 import { CreatePointOfSaleParams } from '../../../src/controller/request/point-of-sale-request';
+import { PointOfSaleWithContainersResponse } from '../../../src/controller/response/point-of-sale-response';
 
 /**
  * Test if all the container responses are part of the container set array.
@@ -132,6 +133,16 @@ describe('ContainerService', async (): Promise<void> => {
   after(async () => {
     await ctx.connection.close();
   });
+
+  const defaultCreateContainerParams = async (): Promise<CreateContainerParams> => ({
+    ownerId: (await User.findOne({ where: { deleted: false } })).id,
+    name: 'Container Update Name',
+    products: [1, 2, 3],
+    public: true,
+  });
+
+  const createNewContainer = async (creation: CreateContainerParams) => (
+    Promise.resolve(ContainerService.createContainer(creation, true)));
 
   describe('updateContainer function', () => {
     it('should return undefined is base is not defined', async () => {
@@ -241,6 +252,46 @@ describe('ContainerService', async (): Promise<void> => {
     });
   });
 
+  describe('deleteContainer function', () => {
+    it('should set deleted to true', async () => {
+      const creation = await defaultCreateContainerParams();
+      const response = await createNewContainer(creation);
+      let container = (await Container.findOne(response.id));
+
+      expect(container.deleted).to.equal(false);
+      await ContainerService.deleteContainer(container);
+
+      container = (await Container.findOne(response.id));
+      expect(container.deleted).to.equal(true);
+    });
+    it('should remove container from points of sales when deleting', async () => {
+      const creation = await defaultCreateContainerParams();
+      const response = await createNewContainer(creation);
+      let container = (await Container.findOne(response.id));
+
+      const ownerId = (await User.findOne({ where: { deleted: false } })).id;
+      const createPOS: CreatePointOfSaleParams = {
+        containers: [response.id, ctx.containers[0].id],
+        name: 'POS',
+        ownerId,
+      };
+
+      const pos = await PointOfSaleService.createPointOfSale(createPOS, true);
+
+      await ContainerService.deleteContainer(container);
+      container = (await Container.findOne(response.id));
+      expect(container.deleted).to.equal(true);
+
+      const { containers } = (await PointOfSaleService.getPointsOfSale({
+        pointOfSaleId: pos.id,
+        returnContainers: true,
+      })).records[0] as PointOfSaleWithContainersResponse;
+
+      expect(containers.length).to.equal(1);
+      expect(containers[0].id).to.equal(ctx.containers[0].id);
+    });
+  });
+
   describe('getUpdatedContainers function', () => {
     it('should return all updated containers with no input specification', async () => {
       const { records } = await ContainerService.getUpdatedContainers();
@@ -344,14 +395,8 @@ describe('ContainerService', async (): Promise<void> => {
 
   describe('createContainer function', () => {
     it('should create the container without update if approve is true', async () => {
-      const creation: CreateContainerParams = {
-        ownerId: (await User.findOne({ where: { deleted: false } })).id,
-        name: 'Container Update Name',
-        products: [1, 2, 3],
-        public: true,
-      };
-
-      const container = await ContainerService.createContainer(creation, true);
+      const creation = await defaultCreateContainerParams();
+      const container = await createNewContainer(creation);
       responseAsCreation(creation, container);
       const entity = await Container.findOne({ where: { id: container.id } });
       const revision = await ContainerRevision.findOne({

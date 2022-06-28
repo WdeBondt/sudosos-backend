@@ -125,7 +125,7 @@ export interface ProductFilterParameters {
   deleted?: boolean;
 }
 
-type CreateContainerUpdateFunction = (c: ContainerResponse,
+type ContainerUpdateCreator = (c: ContainerResponse,
   revision: ContainerRevision, productId: number) => UpdateContainerParams;
 
 export function parseGetProductFilters(req: RequestWithToken): ProductFilterParameters {
@@ -517,7 +517,7 @@ export default class ProductService {
     return createdProduct;
   }
 
-  private static refreshContainerUpdate: CreateContainerUpdateFunction = (c: ContainerResponse,
+  private static refreshContainerUpdate: ContainerUpdateCreator = (c: ContainerResponse,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     revision: ContainerRevision, productId: number) => ({
     products: revision.products.map((p) => p.product.id),
@@ -526,7 +526,7 @@ export default class ProductService {
     id: c.id,
   });
 
-  private static deleteProductContainerUpdate: CreateContainerUpdateFunction =
+  private static deleteProductContainerUpdate: ContainerUpdateCreator =
   (c: ContainerResponse, revision: ContainerRevision, productId: number) => ({
     products: revision.products.map((p) => p.product.id).filter((p) => p !== productId),
     public: c.public,
@@ -627,18 +627,21 @@ export default class ProductService {
    * @param containerUpdateCreator
    */
   public static async propagateProductUpdate(productId: number,
-    containerUpdateCreator: CreateContainerUpdateFunction) {
+    containerUpdateCreator: ContainerUpdateCreator) {
     const containers = (await ContainerService.getContainers({ productId })).records;
 
     const promises: Promise<ContainerWithProductsResponse>[] = [];
     const posIds = new Set<number>();
 
     containers.forEach((c) => {
-      promises.push(ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => ContainerService.directContainerUpdate(containerUpdateCreator(c, revision, productId), false).then((u) => (
-        (ContainerService.getPOSContainingContainer(c.id).then((ids) => {
-          ids.forEach((id) => posIds.add(id));
-          return u;
-        }))))));
+      promises.push(ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] })
+        .then(async (revision) => ContainerService
+          .directContainerUpdate(containerUpdateCreator(c, revision, productId), false)
+          .then((u) => (
+            (ContainerService.getPOSContainingContainer(c.id).then((ids) => {
+              ids.forEach((id) => posIds.add(id));
+              return u;
+            }))))));
     });
 
     await Promise.all(promises);

@@ -65,6 +65,7 @@ export interface UpdatedContainerParameters {
   ownerId?: number;
   returnProducts?: boolean;
   productId?: number;
+  deleted?: boolean;
 }
 
 /**
@@ -120,6 +121,9 @@ export default class ContainerService {
       'container_owner.lastName AS owner_lastName',
     ];
 
+    // eslint-disable-next-line no-param-reassign
+    if (filters.deleted === undefined) filters.deleted = false;
+
     const builder = createQueryBuilder()
       .from(Container, 'container')
       .innerJoin(
@@ -168,6 +172,7 @@ export default class ContainerService {
       containerRevision: 'containerrevision.revision',
       ownerId: 'ownerId',
       public: 'container.public',
+      deleted: 'container.deleted',
     };
 
     QueryFilter.applyFilter(builder, filterMapping, p);
@@ -493,7 +498,7 @@ export default class ContainerService {
   }
 
   public static async getPOSContainingContainer(containerId: number): Promise<number[]> {
-    const pos = await PointOfSaleRevision.find({ where: `"PointOfSaleRevision__containers"."containerId" = ${containerId} AND ("PointOfSaleRevision__containers__container"."currentRevision" - 1) = "PointOfSaleRevision__containers"."revision"  AND "PointOfSaleRevision__pointOfSale"."currentRevision" = "PointOfSaleRevision"."revision"`, relations: ['pointOfSale', 'containers', 'containers.container'] });
+    const pos = await PointOfSaleRevision.find({ where: `"PointOfSaleRevision__containers"."containerId" = ${containerId} AND "PointOfSaleRevision__pointOfSale"."currentRevision" = "PointOfSaleRevision"."revision"`, relations: ['pointOfSale', 'containers', 'containers.container'] });
     return pos.map((p) => p.pointOfSale.id);
   }
 
@@ -508,6 +513,14 @@ export default class ContainerService {
   public static async propagateContainerUpdate(containerId: number) {
     const posIds = await this.getPOSContainingContainer(containerId);
     await PointOfSaleService.refreshPointOfSales(posIds);
+  }
+
+  public static async deleteContainer(container: Container) {
+    // eslint-disable-next-line no-param-reassign
+    container.deleted = true;
+    await container.save();
+    const posIds = await this.getPOSContainingContainer(container.id);
+    await PointOfSaleService.deleteContainerPointOfSale(posIds, container.id);
   }
 
   /**

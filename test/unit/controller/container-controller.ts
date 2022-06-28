@@ -180,7 +180,6 @@ describe('ContainerController', async (): Promise<void> => {
           get: own,
           create: own,
           update: own,
-          delete: own,
         },
       },
       assignmentCheck: async (user: User) => user.type === UserType.MEMBER,
@@ -692,6 +691,52 @@ describe('ContainerController', async (): Promise<void> => {
 
       // success code
       expect(res.status).to.equal(403);
+    });
+  });
+  describe('DELETE /containers/:id', () => {
+    it('should return an HTTP 203 and delete the container with the given id if admin', async () => {
+      // Create new container
+      let res = await request(ctx.app)
+        .post('/containers')
+        .set('Authorization', `Bearer ${ctx.adminToken}`)
+        .send(ctx.validContainerReq);
+      expect(res.status).to.equal(200);
+
+      // Delete container
+      const containerId = (res.body as ContainerResponse).id;
+      res = await request(ctx.app)
+        .delete(`/containers/${containerId}`)
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      expect(res.status).to.equal(203);
+
+      // Check if container is deleted
+      res = await request(ctx.app)
+        .get(`/containers/${containerId}`)
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      expect(res.status).to.equal(404);
+    });
+    it('should return an HTTP 404 if the container with the given id does not exist', async () => {
+      const res = await request(ctx.app)
+        .delete(`/containers/${(await Container.count()) + 1}`)
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+
+      expect(await Container.findOne((await Container.count()) + 1)).to.be.undefined;
+
+      // check if product is not returned
+      expect(res.body).to.equal('Container not found.');
+
+      // success code
+      expect(res.status).to.equal(404);
+    });
+    it('should return an HTTP 403 if not admin', async () => {
+      const containerCount = await Container.count({ where: { deleted: false } });
+      const res = await request(ctx.app)
+        .delete('/containers/1')
+        .set('Authorization', `Bearer ${ctx.token}`);
+
+      expect(res.status).to.equal(403);
+      expect(await Container.count({ where: { deleted: false } })).to.equal(containerCount);
+      expect(res.body).to.be.empty;
     });
   });
   describe('GET /containers/public', () => {
