@@ -37,14 +37,10 @@ import {
 } from '../controller/request/container-request';
 import ProductImage from '../entity/file/product-image';
 import User from '../entity/user/user';
-import {
-  UpdatePointOfSaleParams,
-} from '../controller/request/point-of-sale-request';
 // eslint-disable-next-line import/no-cycle
 import PointOfSaleService from './point-of-sale-service';
 // eslint-disable-next-line import/no-cycle
 import ProductService from './product-service';
-import { PointOfSaleWithContainersResponse } from '../controller/response/point-of-sale-response';
 
 interface ContainerVisibility {
   own: boolean;

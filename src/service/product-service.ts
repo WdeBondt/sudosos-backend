@@ -41,7 +41,8 @@ import { asBoolean, asDate, asNumber } from '../helpers/validators';
 import ContainerService from './container-service';
 import { UpdateContainerParams } from '../controller/request/container-request';
 import { BaseVatGroupResponse } from '../controller/response/vat-group-response';
-import { ContainerWithProductsResponse } from '../controller/response/container-response';
+import { ContainerResponse, ContainerWithProductsResponse } from '../controller/response/container-response';
+// eslint-disable-next-line import/no-cycle
 import PointOfSaleService from './point-of-sale-service';
 
 /**
@@ -121,7 +122,11 @@ export interface ProductFilterParameters {
    * Filter based on alcohol percentage.
    */
   alcoholPercentage?: number;
+  deleted?: boolean;
 }
+
+type CreateContainerUpdateFunction = (c: ContainerResponse,
+  revision: ContainerRevision, productId: number) => UpdateContainerParams;
 
 export function parseGetProductFilters(req: RequestWithToken): ProductFilterParameters {
   if ((req.query.pointOfSaleRevision && !req.query.pointOfSaleId)
@@ -130,7 +135,7 @@ export function parseGetProductFilters(req: RequestWithToken): ProductFilterPara
     throw new Error('Cannot filter on a revision, when there is no id given');
   }
 
-  const filters: ProductFilterParameters = {
+  return {
     productId: asNumber(req.query.productId),
     productRevision: asNumber(req.query.productRevision),
     ownerId: asNumber(req.query.fromId),
@@ -147,9 +152,8 @@ export function parseGetProductFilters(req: RequestWithToken): ProductFilterPara
     // productName: asString(req.query.productName),
     priceInclVat: asNumber(req.query.priceInclVat),
     alcoholPercentage: asNumber(req.query.alcoholPercentage),
+    deleted: asBoolean(req.query.deleted),
   };
-
-  return filters;
 }
 
 /**
@@ -205,6 +209,9 @@ export default class ProductService {
     const { take, skip } = pagination;
     const builder: SelectQueryBuilder<any> = this.getRelevantBuilder(filters).bind(this)(filters);
 
+    // eslint-disable-next-line no-param-reassign
+    if (filters.deleted === undefined) filters.deleted = false;
+
     const filterMapping: FilterMapping = {
       productId: 'product.id',
       ownerId: 'owner.id',
@@ -216,6 +223,7 @@ export default class ProductService {
       productName: 'productrevision.name',
       priceInclVat: 'productrevision.priceInclVat',
       alcoholPercentage: 'productrevision.alcoholpercentage',
+      deleted: 'product.deleted',
     };
 
     QueryFilter.applyFilter(builder, filterMapping, filters);
@@ -509,6 +517,23 @@ export default class ProductService {
     return createdProduct;
   }
 
+  private static refreshContainerUpdate: CreateContainerUpdateFunction = (c: ContainerResponse,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    revision: ContainerRevision, productId: number) => ({
+    products: revision.products.map((p) => p.product.id),
+    public: c.public,
+    name: revision.name,
+    id: c.id,
+  });
+
+  private static deleteProductContainerUpdate: CreateContainerUpdateFunction =
+  (c: ContainerResponse, revision: ContainerRevision, productId: number) => ({
+    products: revision.products.map((p) => p.product.id).filter((p) => p !== productId),
+    public: c.public,
+    name: revision.name,
+    id: c.id,
+  });
+
   public static async applyProductUpdate(base: Product, update: UpdateProductRequest) {
     const product = { ...base };
 
@@ -531,7 +556,7 @@ export default class ProductService {
     base.currentRevision = base.currentRevision ? base.currentRevision + 1 : 1;
     await base.save();
 
-    await this.propagateProductUpdate(base.id);
+    await this.propagateProductUpdate(base.id, this.refreshContainerUpdate);
     return productRevision;
   }
 
@@ -583,64 +608,37 @@ export default class ProductService {
 
   /**
    * (Soft-)Deletes a product
-   * @param productId
+   * @param product - The product to delete
    */
-  public static async deleteProduct(productId: number) {
-    const product = await Product.findOne(productId);
+  public static async deleteProduct(product: Product) {
+    // eslint-disable-next-line no-param-reassign
     product.deleted = true;
-    await this.removeProductFromContainers(productId);
-  }
-
-  /**
-   * Function that removes a product from all containers and propagates the update.
-   * @param productId - Product to remove
-   * @private
-   */
-  private static async removeProductFromContainers(productId: number) {
-    const containers = (await ContainerService.getContainers({ productId })).records;
-    for (let i = 0; i < containers.length; i += 1) {
-      const c = containers[i];
-      // eslint-disable-next-line no-await-in-loop
-      await ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => {
-        const update: UpdateContainerParams = {
-          products: revision.products.map((p) => p.product.id).filter((p) => p !== productId),
-          public: c.public,
-          name: revision.name,
-          id: c.id,
-        };
-        await ContainerService.directContainerUpdate(update);
-      });
-    }
+    await product.save();
+    await this.propagateProductUpdate(product.id, this.deleteProductContainerUpdate);
   }
 
   /**
    * Propagates the product update to all parent containers
    *
-   * All containers that contain the previous version of this product
-   * will be revised to include the new revision.
+   * The container update is constructed using the containerUpdateCreator
+   * This was done such that we can re-use the code for refreshing or deleting products.
    *
    * @param productId - The product to propagate
+   * @param containerUpdateCreator
    */
-  public static async propagateProductUpdate(productId: number) {
+  public static async propagateProductUpdate(productId: number,
+    containerUpdateCreator: CreateContainerUpdateFunction) {
     const containers = (await ContainerService.getContainers({ productId })).records;
 
     const promises: Promise<ContainerWithProductsResponse>[] = [];
     const posIds = new Set<number>();
 
     containers.forEach((c) => {
-      promises.push(ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => {
-        const update: UpdateContainerParams = {
-          products: revision.products.map((p) => p.product.id),
-          public: c.public,
-          name: revision.name,
-          id: c.id,
-        };
-        return ContainerService.directContainerUpdate(update, false).then((u) => (
-          (ContainerService.getPOSContainingContainer(c.id).then((ids) => {
-            ids.forEach((id) => posIds.add(id));
-            return u;
-          }))));
-      }));
+      promises.push(ContainerRevision.findOne({ where: { container: { id: c.id }, revision: c.revision }, relations: ['products', 'products.product'] }).then(async (revision) => ContainerService.directContainerUpdate(containerUpdateCreator(c, revision, productId), false).then((u) => (
+        (ContainerService.getPOSContainingContainer(c.id).then((ids) => {
+          ids.forEach((id) => posIds.add(id));
+          return u;
+        }))))));
     });
 
     await Promise.all(promises);

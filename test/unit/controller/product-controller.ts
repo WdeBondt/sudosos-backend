@@ -475,6 +475,53 @@ describe('ProductController', async (): Promise<void> => {
       expect(res.status).to.equal(403);
     });
   });
+  describe('DELETE /products/:id', () => {
+    it('should return an HTTP 203 and delete the product with the given id if admin', async () => {
+      // Create new product
+      let res = await request(ctx.app)
+        .post('/products')
+        .set('Authorization', `Bearer ${ctx.adminToken}`)
+        .send(ctx.validProductReq);
+      expect(res.status).to.equal(200);
+
+      // Delete product
+      const productId = (res.body as ProductResponse).id;
+      res = await request(ctx.app)
+        .delete(`/products/${productId}`)
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      expect(res.status).to.equal(203);
+
+      // Check if product is deleted
+      res = await request(ctx.app)
+        .get(`/products/${productId}`)
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      expect(res.status).to.equal(404);
+    });
+    it('should return an HTTP 404 if the product with the given id does not exist', async () => {
+      const res = await request(ctx.app)
+        .delete(`/products/${(await Product.count()) + 1}`)
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+
+      expect(await Product.findOne((await Product.count()) + 1)).to.be.undefined;
+
+      // check if product is not returned
+      expect(res.body).to.equal('Product not found.');
+
+      // success code
+      expect(res.status).to.equal(404);
+    });
+    it('should return an HTTP 403 if not admin', async () => {
+      const productCount = await Product.count();
+      const res = await request(ctx.app)
+        .delete('/products/1')
+        .set('Authorization', `Bearer ${ctx.tokenNoRoles}`);
+
+      expect(await Product.count()).to.equal(productCount);
+      expect(res.body).to.be.empty;
+
+      expect(res.status).to.equal(403);
+    });
+  });
   describe('PATCH /products/:id', () => {
     it('should verifyProductRequest Specification', async (): Promise<void> => {
       await testValidationOnRoute('patch', '/products/1');

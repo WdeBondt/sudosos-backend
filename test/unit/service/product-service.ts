@@ -25,8 +25,12 @@ import Database from '../../../src/database/database';
 import Swagger from '../../../src/start/swagger';
 import ProductService, { ProductFilterParameters } from '../../../src/service/product-service';
 import {
-  seedAllProducts, seedAllContainers, seedProductCategories,
-  seedUsers, seedAllPointsOfSale, seedVatGroups,
+  seedAllContainers,
+  seedAllPointsOfSale,
+  seedAllProducts,
+  seedProductCategories,
+  seedUsers,
+  seedVatGroups,
 } from '../../seed';
 import Product from '../../../src/entity/product/product';
 import { PaginatedProductResponse, ProductResponse } from '../../../src/controller/response/product-response';
@@ -45,6 +49,7 @@ import { CreateContainerParams } from '../../../src/controller/request/container
 import ContainerService from '../../../src/service/container-service';
 import { CreatePointOfSaleParams } from '../../../src/controller/request/point-of-sale-request';
 import PointOfSaleService from '../../../src/service/point-of-sale-service';
+import { ContainerWithProductsResponse } from '../../../src/controller/response/container-response';
 
 chai.use(deepEqualInAnyOrder);
 
@@ -188,6 +193,22 @@ describe('ProductService', async (): Promise<void> => {
   after(async () => {
     await ctx.connection.close();
   });
+
+  const defaultCreateProductParams = async (): Promise<CreateProductParams> => ({
+    alcoholPercentage: 0,
+    category: 1,
+    vat: 1,
+    name: 'New Product Name',
+    ownerId: (await User.findOne({ where: { deleted: false } })).id,
+    priceInclVat: {
+      amount: 50,
+      currency: 'EUR',
+      precision: 2,
+    },
+  });
+
+  const createNewProduct = async (creation: CreateProductParams) => (
+    Promise.resolve(ProductService.createProduct(creation, true)));
 
   describe('getProducts function', () => {
     it('should return all products with no input specification', async () => {
@@ -481,20 +502,8 @@ describe('ProductService', async (): Promise<void> => {
 
   describe('createProduct function', () => {
     it('should create the product without update if approve is true', async () => {
-      const creation: CreateProductParams = {
-        alcoholPercentage: 0,
-        category: 1,
-        vat: 1,
-        name: 'New Product Name',
-        ownerId: (await User.findOne({ where: { deleted: false } })).id,
-        priceInclVat: {
-          amount: 50,
-          currency: 'EUR',
-          precision: 2,
-        },
-      };
-
-      const response = await ProductService.createProduct(creation, true);
+      const creation = await defaultCreateProductParams();
+      const response = await createNewProduct(creation);
       validateProductProperties(response, creation);
       const entity = await Product.findOne({ where: { id: response.id } });
       expect(entity.currentRevision).to.eq(1);
@@ -518,6 +527,40 @@ describe('ProductService', async (): Promise<void> => {
       };
       const response = await ProductService.directProductUpdate(update);
       validateProductProperties(response, update);
+    });
+  });
+
+  describe('deleteProduct function', () => {
+    it('should set deleted to true', async () => {
+      const creation = await defaultCreateProductParams();
+      const response = await createNewProduct(creation);
+      const product = await Product.findOne(response.id);
+      await ProductService.deleteProduct(product);
+      expect((await Product.findOne(response.id)).deleted).to.equal(true);
+    });
+    it('should remove product from containers when deleting', async () => {
+      const creation = await defaultCreateProductParams();
+      const response = await createNewProduct(creation);
+      const product = await Product.findOne(response.id);
+
+      const ownerId = (await User.findOne({ where: { deleted: false } })).id;
+      const createContainer: CreateContainerParams = {
+        name: 'Container Name',
+        ownerId,
+        products: [product.id, ctx.products[0].id],
+        public: true,
+      };
+
+      const container = await ContainerService.createContainer(createContainer, true);
+
+      await ProductService.deleteProduct(product);
+      expect((await Product.findOne(response.id)).deleted).to.equal(true);
+      const { products } = (await ContainerService.getContainers({
+        containerId: container.id,
+        returnProducts: true,
+      })).records[0] as ContainerWithProductsResponse;
+      expect(products.length).to.equal(1);
+      expect(products[0].id).to.equal(ctx.products[0].id);
     });
   });
 

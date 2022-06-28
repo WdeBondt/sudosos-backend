@@ -428,7 +428,8 @@ export default class ProductController extends BaseController {
         res.status(404).json('Product not found.');
         return;
       }
-      await ProductService.deleteProduct(productId);
+      await ProductService.deleteProduct(product);
+      res.status(203).send();
     } catch (error) {
       this.logger.error('Could not delete product:', error);
       res.status(500).json('Internal server error.');
