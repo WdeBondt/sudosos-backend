@@ -19,7 +19,8 @@ import { Connection } from 'typeorm';
 import express, { Application } from 'express';
 import { SwaggerSpecification } from 'swagger-model-validator';
 import { json } from 'body-parser';
-import { request, expect } from 'chai';
+import chai, { request, expect } from 'chai';
+import deepEqualInAnyOrder from 'deep-equal-in-any-order';
 import PointOfSaleController from '../../../src/controller/point-of-sale-controller';
 import User, { TermsOfServiceStatus, UserType } from '../../../src/entity/user/user';
 import Database from '../../../src/database/database';
@@ -31,13 +32,22 @@ import Swagger from '../../../src/start/swagger';
 import RoleManager from '../../../src/rbac/role-manager';
 import TokenMiddleware from '../../../src/middleware/token-middleware';
 import PointOfSale from '../../../src/entity/point-of-sale/point-of-sale';
-import { PointOfSaleResponse } from '../../../src/controller/response/point-of-sale-response';
+import {
+  PointOfSaleResponse,
+  PointOfSaleWithContainersResponse,
+} from '../../../src/controller/response/point-of-sale-response';
 import { defaultPagination, PaginationResult } from '../../../src/helpers/pagination';
 import { ContainerResponse } from '../../../src/controller/response/container-response';
 import { PaginatedProductResponse, ProductResponse } from '../../../src/controller/response/product-response';
 import UpdatedPointOfSale from '../../../src/entity/point-of-sale/updated-point-of-sale';
-import { CreatePointOfSaleParams, CreatePointOfSaleRequest } from '../../../src/controller/request/point-of-sale-request';
+import {
+  CreatePointOfSaleParams,
+  CreatePointOfSaleRequest,
+  UpdatePointOfSaleRequest,
+} from '../../../src/controller/request/point-of-sale-request';
 import { INVALID_CONTAINER_ID } from '../../../src/controller/request/validators/validation-errors';
+
+chai.use(deepEqualInAnyOrder);
 
 /**
  * Tests if a POS response is equal to the request.
@@ -48,6 +58,15 @@ import { INVALID_CONTAINER_ID } from '../../../src/controller/request/validators
 function pointOfSaleEq(source: CreatePointOfSaleRequest, response: PointOfSaleResponse) {
   expect(source.name).to.eq(response.name);
   expect(source.ownerId).to.eq(response.owner.id);
+  expect(source.useAuthentication).to.eq(response.useAuthentication);
+}
+
+function updatePointOfSaleEq(source: UpdatePointOfSaleRequest,
+  response: PointOfSaleWithContainersResponse) {
+  expect(source.name).to.eq(response.name);
+  expect(source.id).to.eq(response.id);
+  expect(source.containers).to.deep.equalInAnyOrder(response.containers.map((c) => c.id));
+  expect(source.useAuthentication).to.eq(response.useAuthentication);
 }
 
 describe('PointOfSaleController', async () => {
@@ -62,6 +81,7 @@ describe('PointOfSaleController', async () => {
     validPOSRequest: CreatePointOfSaleRequest,
     adminToken: string,
     token: string,
+    semiAdminToken: string,
     organMemberToken: string,
   };
 
@@ -93,8 +113,17 @@ describe('PointOfSaleController', async () => {
       acceptedToS: TermsOfServiceStatus.NOT_REQUIRED,
     } as User;
 
+    const semiAdminUser = {
+      id: 4,
+      firstName: 'User',
+      type: UserType.MEMBER,
+      active: true,
+      acceptedToS: TermsOfServiceStatus.ACCEPTED,
+    } as User;
+
     await User.save(adminUser);
     await User.save(localUser);
+    await User.save(semiAdminUser);
     await User.save(organ);
 
     const categories = await seedProductCategories();
@@ -121,6 +150,7 @@ describe('PointOfSaleController', async () => {
       algorithm: 'HS256', publicKey: 'test', privateKey: 'test', expiry: 3600,
     });
     const adminToken = await tokenHandler.signToken({ user: adminUser, roles: ['Admin'], lesser: false }, 'nonce admin');
+    const semiAdminToken = await tokenHandler.signToken({ user: semiAdminUser, roles: ['SemiAdmin'], lesser: false }, 'nonce admin');
     const token = await tokenHandler.signToken({ user: localUser, roles: ['User'], lesser: false }, 'nonce');
     const organMemberToken = await tokenHandler.signToken({
       user: localUser, roles: ['User', 'Seller'], organs: [organ], lesser: false,
@@ -134,8 +164,29 @@ describe('PointOfSaleController', async () => {
     const organRole = { organ: new Set<string>(['*']) };
 
     const roleManager = new RoleManager();
+
     roleManager.registerRole({
       name: 'Admin',
+      permissions: {
+        PointOfSale: {
+          create: all,
+          get: all,
+          update: all,
+          approve: all,
+          delete: all,
+        },
+        Container: {
+          get: all,
+        },
+        Transaction: {
+          get: all,
+        },
+      },
+      assignmentCheck: async (user: User) => user.type === UserType.LOCAL_ADMIN,
+    });
+
+    roleManager.registerRole({
+      name: 'SemiAdmin',
       permissions: {
         PointOfSale: {
           create: all,
@@ -203,6 +254,7 @@ describe('PointOfSaleController', async () => {
       validPOSRequest,
       adminToken,
       token,
+      semiAdminToken,
       organMemberToken,
     };
   });
@@ -522,6 +574,54 @@ describe('PointOfSaleController', async () => {
       expect((res.body as PaginatedProductResponse).records.length).to.equal(0);
     });
   });
+  describe('PATCH /pointsofsale/:id', () => {
+    it('should update the name of the POS', async () => {
+      let res = await request(ctx.app)
+        .get('/pointsofsale/1')
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      let pos = res.body as PointOfSaleWithContainersResponse;
+      const name = `${pos.name}-update`;
+      const containers = pos.containers.map((c) => c.id);
+      const update: UpdatePointOfSaleRequest = {
+        containers,
+        name,
+        useAuthentication: pos.useAuthentication,
+        id: 1,
+      };
+      await request(ctx.app)
+        .patch('/pointsofsale/1')
+        .set('Authorization', `Bearer ${ctx.adminToken}`)
+        .send(update);
+      res = await request(ctx.app)
+        .get('/pointsofsale/1')
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      pos = res.body as PointOfSaleWithContainersResponse;
+      updatePointOfSaleEq(update, pos);
+    });
+    it('should update the useAuthentication of the POS', async () => {
+      let res = await request(ctx.app)
+        .get('/pointsofsale/1')
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      let pos = res.body as PointOfSaleWithContainersResponse;
+      const useAuthentication = !pos.useAuthentication;
+      const containers = pos.containers.map((c) => c.id);
+      const update: UpdatePointOfSaleRequest = {
+        containers,
+        name: pos.name,
+        useAuthentication,
+        id: 1,
+      };
+      await request(ctx.app)
+        .patch('/pointsofsale/1')
+        .set('Authorization', `Bearer ${ctx.adminToken}`)
+        .send(update);
+      res = await request(ctx.app)
+        .get('/pointsofsale/1')
+        .set('Authorization', `Bearer ${ctx.adminToken}`);
+      pos = res.body as PointOfSaleWithContainersResponse;
+      updatePointOfSaleEq(update, pos);
+    });
+  });
 
   function testValidationOnRoute(type: any, route: string) {
     async function expectError(req: CreatePointOfSaleRequest, error: string) {
@@ -556,7 +656,7 @@ describe('PointOfSaleController', async () => {
       const count = await PointOfSale.count();
       const res = await request(ctx.app)
         .post('/pointsofsale')
-        .set('Authorization', `Bearer ${ctx.adminToken}`)
+        .set('Authorization', `Bearer ${ctx.semiAdminToken}`)
         .send(ctx.validPOSRequest);
       expect(ctx.specification.validateModel(
         'UpdatedPointOfSaleResponse',

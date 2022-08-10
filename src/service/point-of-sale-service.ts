@@ -337,6 +337,7 @@ export default class PointOfSaleService {
       pointOfSale: base,
       containers: containerRevisions,
       name: update.name,
+      useAuthentication: update.useAuthentication,
       // Increment revision.
       revision: base.currentRevision ? base.currentRevision + 1 : 1,
     });

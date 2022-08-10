@@ -79,7 +79,8 @@ function updateUpdatedResponseEqual(update: UpdatePointOfSaleRequest,
  */
 function requestUpdatedResponseEqual(request: CreatePointOfSaleParams,
   response: UpdatedPointOfSaleResponse) {
-  updateUpdatedResponseEqual(request, response);
+  expect(request.name).to.equal(response.name);
+  expect(request.useAuthentication).to.equal(response.useAuthentication);
   expect(request.ownerId).to.equal(response.owner.id);
 }
 
