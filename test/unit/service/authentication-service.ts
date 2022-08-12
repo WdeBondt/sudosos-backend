@@ -25,7 +25,6 @@ import User, { UserType } from '../../../src/entity/user/user';
 import Database from '../../../src/database/database';
 import seedDatabase from '../../seed';
 import Swagger from '../../../src/start/swagger';
-import AuthenticationService from '../../../src/service/authentication-service';
 import { inUserContext, UserFactory } from '../../helpers/user-factory';
 import PinAuthenticator from '../../../src/entity/authenticator/pin-authenticator';
 import { UserResponse } from '../../../src/controller/response/user-response';
@@ -35,6 +34,7 @@ import { restoreLDAPEnv, storeLDAPEnv } from '../../helpers/test-helpers';
 import HashBasedAuthenticationMethod from '../../../src/entity/authenticator/hash-based-authentication-method';
 import LocalAuthenticator from '../../../src/entity/authenticator/local-authenticator';
 import AuthenticationResetTokenRequest from '../../../src/controller/request/authentication-reset-token-request';
+import AuthenticationService from '../../../src/service/authentication-service';
 
 export default function userIsAsExpected(user: User | UserResponse, ADResponse: any) {
   expect(user.firstName).to.equal(ADResponse.givenName);

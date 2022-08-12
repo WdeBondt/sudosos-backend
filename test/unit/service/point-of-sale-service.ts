@@ -99,6 +99,7 @@ describe('PointOfSaleService', async (): Promise<void> => {
     pointsOfSale: PointOfSale[],
     updatedPointsOfSale: UpdatedPointOfSale[],
     validPOSParams: CreatePointOfSaleParams,
+    invalidPOSParams: CreatePointOfSaleParams,
   };
 
   before(async function before() {
@@ -133,6 +134,13 @@ describe('PointOfSaleService', async (): Promise<void> => {
       ownerId: 1,
     };
 
+    const invalidPOSParams: CreatePointOfSaleParams = {
+      containers: [containers[0].id, containers[1].id, containers[2].id],
+      name: 'invalid POS',
+      useAuthentication: true,
+      ownerId: 100,
+    };
+
     ctx = {
       connection,
       app,
@@ -141,6 +149,7 @@ describe('PointOfSaleService', async (): Promise<void> => {
       pointsOfSale,
       updatedPointsOfSale,
       validPOSParams,
+      invalidPOSParams,
     };
   });
 
@@ -305,6 +314,10 @@ describe('PointOfSaleService', async (): Promise<void> => {
 
       requestUpdatedResponseEqual(ctx.validPOSParams, res);
     });
+    it('should return undefined when no owner is defined', async () => {
+      const response = await PointOfSaleService.createPointOfSale(ctx.invalidPOSParams);
+      expect(response).to.be.undefined;
+    });
   });
   describe('updatePointOfSale function', () => {
     it('should create a new UpdatedPointOfSale', async () => {
@@ -380,6 +393,12 @@ describe('PointOfSaleService', async (): Promise<void> => {
 
       const response = await PointOfSaleService.directPointOfSaleUpdate(update);
       updateResponseEqual(update, response);
+    });
+  });
+  describe('canViewPointOfSale function', () => {
+    it('should return false', async () => {
+      const response = await PointOfSaleService.canViewPointOfSale(1, null);
+      expect(response).to.be.false;
     });
   });
 });
