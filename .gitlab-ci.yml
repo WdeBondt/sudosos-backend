@@ -93,17 +93,12 @@ test-mysql:
   variables:
     MYSQL_DATABASE: $MYSQL_DATABASE
     MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
-    TYPEORM_SYNCHRONIZE: 'true'
-    TYPEORM_CONNECTION: mariadb
-    TYPEORM_HOST: mysql
-    TYPEORM_DATABASE: $MYSQL_DATABASE
-    TYPEORM_USERNAME: root
-    TYPEORM_PASSWORD: $MYSQL_ROOT_PASSWORD
-  # services:
-  #   - mysql:latest
+  services:
+    - mysql:latest
   stage: test
   before_script:
     - openssl genrsa -out config/jwt.key 2048
+    - cp "$MYSQL_ENV_FILE" ./.env
   script: npm run coverage-env
   artifacts:
     when: always
