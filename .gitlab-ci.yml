@@ -71,10 +71,6 @@ dockerize:
     - master
 
 test:
-  variables:
-    TYPEORM_CONNECTION: 'sqlite'
-    TYPEORM_DATABASE: ':memory:'
-    TYPEORM_SYNCHRONIZE: 'true'
   stage: test
   before_script:
     - openssl genrsa -out config/jwt.key 2048
