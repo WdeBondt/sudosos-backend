@@ -102,8 +102,8 @@ test-mysql:
     TYPEORM_DATABASE: $MYSQL_DATABASE
     TYPEORM_USERNAME: root
     TYPEORM_PASSWORD: $MYSQL_ROOT_PASSWORD
-  services:
-    - mysql:latest
+  # services:
+  #   - mysql:latest
   stage: test
   before_script:
     - openssl genrsa -out config/jwt.key 2048
