@@ -93,8 +93,8 @@ test-mysql:
   variables:
     MYSQL_DATABASE: $MYSQL_DATABASE
     MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
-  services:
-    - mysql:latest
+  # services:
+  #   - mysql:latest
   stage: test
   before_script:
     - openssl genrsa -out config/jwt.key 2048
