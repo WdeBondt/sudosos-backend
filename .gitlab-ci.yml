@@ -117,8 +117,8 @@ test-mysql:
         path: reports/coverage/cobertura-coverage.xml
     paths:
     - reports/coverage/
-  only:
-    - develop
+  # only:
+  #   - develop
 
 
 lint:
