@@ -74,6 +74,10 @@ dockerize:
     - master
 
 test:
+  variables:
+    TYPEORM_CONNECTION: 'sqlite'
+    TYPEORM_DATABASE: ':memory:'
+    TYPEORM_SYNCHRONIZE: 'true'
   stage: test
   before_script:
     - openssl genrsa -out config/jwt.key 2048
@@ -87,6 +91,35 @@ test:
         path: reports/coverage/cobertura-coverage.xml
     paths:
     - reports/coverage/
+
+test-mysql:
+  variables:
+    MYSQL_DATABASE: $MYSQL_DATABASE
+    MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
+    TYPEORM_SYNCHRONIZE: 'true'
+    TYPEORM_CONNECTION: mariadb
+    TYPEORM_HOST: mysql
+    TYPEORM_DATABASE: $MYSQL_DATABASE
+    TYPEORM_USERNAME: root
+    TYPEORM_PASSWORD: $MYSQL_ROOT_PASSWORD
+  services:
+    - mysql:latest
+  stage: test
+  before_script:
+    - openssl genrsa -out config/jwt.key 2048
+  script: npm run coverage-env
+  artifacts:
+    when: always
+    reports:
+      junit: reports/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: reports/coverage/cobertura-coverage.xml
+    paths:
+    - reports/coverage/
+  only:
+    - develop
+
 
 lint:
   stage: test
