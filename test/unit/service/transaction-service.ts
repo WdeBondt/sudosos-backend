@@ -17,26 +17,33 @@
  */
 
 import express, { Application } from 'express';
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
 import { Connection, createQueryBuilder } from 'typeorm';
 import { SwaggerSpecification } from 'swagger-model-validator';
 import log4js, { Logger } from 'log4js';
 import { DineroObject } from 'dinero.js';
+import deepEqualInAnyOrder from 'deep-equal-in-any-order';
 import Transaction from '../../../src/entity/transactions/transaction';
 import Database from '../../../src/database/database';
 import seedDatabase from '../../seed';
 import TransactionService from '../../../src/service/transaction-service';
 import { verifyBaseTransactionEntity } from '../validators';
 import Swagger from '../../../src/start/swagger';
-import { SubTransactionRequest, SubTransactionRowRequest, TransactionRequest } from '../../../src/controller/request/transaction-request';
+import {
+  SubTransactionRequest,
+  SubTransactionRowRequest,
+  TransactionRequest,
+} from '../../../src/controller/request/transaction-request';
 import SubTransaction from '../../../src/entity/transactions/sub-transaction';
 import SubTransactionRow from '../../../src/entity/transactions/sub-transaction-row';
-import User from '../../../src/entity/user/user';
+import User, { TermsOfServiceStatus, UserType } from '../../../src/entity/user/user';
 import { createValidTransactionRequest } from '../../helpers/transaction-factory';
 import PointOfSaleRevision from '../../../src/entity/point-of-sale/point-of-sale-revision';
 import ContainerRevision from '../../../src/entity/container/container-revision';
 import generateBalance from '../../helpers/test-helpers';
 import { inUserContext, UserFactory } from '../../helpers/user-factory';
+
+chai.use(deepEqualInAnyOrder);
 
 describe('TransactionService', (): void => {
   let ctx: {
@@ -141,14 +148,20 @@ describe('TransactionService', (): void => {
     } as TransactionRequest;
 
     const pointOfSale = await PointOfSaleRevision.findOne({
-      revision: validTransReq.pointOfSale.revision,
-      pointOfSale: { id: validTransReq.pointOfSale.id },
-    }, { relations: ['pointOfSale', 'containers'] });
+      where: {
+        revision: validTransReq.pointOfSale.revision,
+        pointOfSale: { id: validTransReq.pointOfSale.id },
+      },
+      relations: ['pointOfSale', 'containers'],
+    });
 
     const container = await ContainerRevision.findOne({
-      revision: validTransReq.subTransactions[0].container.revision,
-      container: { id: validTransReq.subTransactions[0].container.id },
-    }, { relations: ['container', 'products'] });
+      where: {
+        revision: validTransReq.subTransactions[0].container.revision,
+        container: { id: validTransReq.subTransactions[0].container.id },
+      },
+      relations: ['container', 'products'],
+    });
 
     ctx = {
       connection,
@@ -164,6 +177,7 @@ describe('TransactionService', (): void => {
   });
 
   after(async () => {
+    await ctx.connection.dropDatabase();
     await ctx.connection.close();
   });
 
@@ -260,6 +274,48 @@ describe('TransactionService', (): void => {
         precision: 2,
       };
       expect(await TransactionService.verifyTransaction(badPriceReq), 'incorrect accepted').to.be.false;
+    });
+    it('should return false if from user is an organ', async () => {
+      const organ = ctx.users[ctx.users.findIndex((u) => u.type === UserType.ORGAN)];
+      const badFromReq: TransactionRequest = {
+        ...ctx.validTransReq,
+        from: organ.id,
+      };
+      expect(await TransactionService.verifyTransaction(badFromReq), 'organ accepted as from-user').to.be.false;
+    });
+    it('should return false if an involved user has not accepted TOS', async () => {
+      const user = Object.assign(new User(), {
+        firstName: 'Bart-jan',
+        lastName: 'van de CBC',
+        type: UserType.LOCAL_USER,
+        active: true,
+        ofAge: true,
+        acceptedToS: TermsOfServiceStatus.NOT_ACCEPTED,
+      }) as User;
+      await User.save(user);
+
+      const badFromReq: TransactionRequest = {
+        ...ctx.validTransReq,
+        from: user.id,
+      };
+      expect(await TransactionService.verifyTransaction(badFromReq)).to.be.false;
+
+      const badCreatedByReq: TransactionRequest = {
+        ...ctx.validTransReq,
+        createdBy: user.id,
+      };
+      expect(await TransactionService.verifyTransaction(badCreatedByReq)).to.be.false;
+
+      const badToReq: TransactionRequest = {
+        ...ctx.validTransReq,
+        subTransactions: [
+          {
+            ...ctx.validTransReq.subTransactions[0],
+            to: user.id,
+          },
+        ],
+      };
+      expect(await TransactionService.verifyTransaction(badToReq)).to.be.false;
     });
   });
 
@@ -416,7 +472,8 @@ describe('TransactionService', (): void => {
 
     it('should not return a paginated list when skip is set', async () => {
       const skip = 69;
-      const { records } = await TransactionService.getTransactions({}, { skip });
+      const take = 999999999999;
+      const { records } = await TransactionService.getTransactions({}, { take, skip });
 
       expect(records.length).to.equal(ctx.transactions.length - 69);
     });
@@ -689,15 +746,15 @@ describe('TransactionService', (): void => {
       expect(deletedTransaction, 'return value incorrect').to.eql(savedTransaction);
 
       // check deletion of transaction
-      expect(await Transaction.findOne(deletedTransaction.id), 'transaction not deleted').to.be.undefined;
+      expect(await Transaction.findOne({ where: { id: deletedTransaction.id } }), 'transaction not deleted').to.be.null;
 
       // check deletion of sub transactions
       await Promise.all(deletedTransaction.subTransactions.map(async (sub) => {
-        expect(await SubTransaction.findOne(sub.id), 'sub transaction not deleted').to.be.undefined;
+        expect(await SubTransaction.findOne({ where: { id: sub.id } }), 'sub transaction not deleted').to.be.null;
 
         // check deletion of sub transaction rows
         await Promise.all(sub.subTransactionRows.map(async (row) => {
-          expect(await SubTransactionRow.findOne(row.id), 'sub transaction row not deleted').to.be.undefined;
+          expect(await SubTransactionRow.findOne({ where: { id: row.id } }), 'sub transaction row not deleted').to.be.null;
         }));
       }));
 
@@ -819,11 +876,11 @@ describe('TransactionService', (): void => {
 
       // check deletion of sub transactions
       await Promise.all(savedTransaction.subTransactions.map(async (sub) => {
-        expect(await SubTransaction.findOne(sub.id), 'sub transaction not deleted').to.be.undefined;
+        expect(await SubTransaction.findOne({ where: { id: sub.id } }), 'sub transaction not deleted').to.be.null;
 
         // check deletion of sub transaction rows
         await Promise.all(sub.subTransactionRows.map(async (row) => {
-          expect(await SubTransactionRow.findOne(row.id), 'sub transaction row not deleted').to.be.undefined;
+          expect(await SubTransactionRow.findOne({ where: { id: row.id } }), 'sub transaction row not deleted').to.be.null;
         }));
       }));
 
@@ -855,7 +912,7 @@ describe('TransactionService', (): void => {
 
   describe('createValidTransactionRequest function', () => {
     it('should return a valid TransactionRequest', async () => {
-      await inUserContext(await UserFactory().clone(2), async (debtor: User, creditor: User) => {
+      await inUserContext((await UserFactory()).clone(2), async (debtor: User, creditor: User) => {
         const transaction = await createValidTransactionRequest(
           debtor.id, creditor.id,
         );

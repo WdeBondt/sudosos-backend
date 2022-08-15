@@ -252,6 +252,7 @@ describe('BalanceService', (): void => {
   });
 
   after(async () => {
+    await ctx.connection.dropDatabase();
     await ctx.connection.close();
   });
 
@@ -284,8 +285,8 @@ describe('BalanceService', (): void => {
       await BalanceService.clearBalanceCache();
       await Promise.all(ctx.users.map(
         async (user) => {
-          const cachedBalance = await Balance.findOne(user.id);
-          expect(cachedBalance).to.be.undefined;
+          const cachedBalance = await Balance.findOne({ where: { userId: user.id } });
+          expect(cachedBalance).to.be.null;
           const balance = await BalanceService.getBalance(user.id);
           expect(balance).to.not.be.NaN;
         },
@@ -298,7 +299,7 @@ describe('BalanceService', (): void => {
         const actualBalance = calculateBalance(user);
 
         // eslint-disable-next-line no-await-in-loop
-        const cachedBalance = await Balance.findOne(user.id, { relations: ['user', 'lastTransaction', 'lastTransfer'] });
+        const cachedBalance = await Balance.findOne({ where: { userId: user.id }, relations: ['user', 'lastTransaction', 'lastTransfer'] });
         expect(cachedBalance).to.not.be.undefined;
         // eslint-disable-next-line no-await-in-loop
         const balance = await BalanceService.getBalance(user.id);
@@ -321,11 +322,11 @@ describe('BalanceService', (): void => {
     it('should be able to clear balance for specific users', async () => {
       await BalanceService.clearBalanceCache([ctx.users[0].id, ctx.users[1].id]);
 
-      let cachedBalance = await Balance.findOne(ctx.users[0].id);
-      expect(cachedBalance).to.be.undefined;
+      let cachedBalance = await Balance.findOne({ where: { userId: ctx.users[0].id } });
+      expect(cachedBalance).to.be.null;
 
-      cachedBalance = await Balance.findOne(ctx.users[1].id);
-      expect(cachedBalance).to.be.undefined;
+      cachedBalance = await Balance.findOne({ where: { userId: ctx.users[1].id } });
+      expect(cachedBalance).to.be.null;
 
       const actualBalance = await calculateBalance(ctx.users[0]);
       const balance = await BalanceService.getBalance(ctx.users[0].id);
@@ -338,10 +339,10 @@ describe('BalanceService', (): void => {
     it('should be able to cache the balance of certain users', async () => {
       await BalanceService.updateBalances({ ids: [ctx.users[0].id, ctx.users[1].id] });
 
-      let cachedBalance = await Balance.findOne(ctx.users[0].id);
+      let cachedBalance = await Balance.findOne({ where: { userId: ctx.users[0].id } });
       expect(cachedBalance).to.not.be.undefined;
 
-      cachedBalance = await Balance.findOne(ctx.users[1].id);
+      cachedBalance = await Balance.findOne({ where: { userId: ctx.users[1].id } });
       expect(cachedBalance).to.not.be.undefined;
 
       const actualBalance = await calculateBalance(ctx.users[0]);
@@ -396,40 +397,40 @@ describe('BalanceService', (): void => {
 
   describe('getBalance', () => {
     it('should return 0 for new user', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const balance = await BalanceService.getBalance(newUser.id);
       expect(balance.amount.amount).to.equal(0);
     });
     it('should return correct balance for new user with single outgoing transaction', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const { amount } = await addTransaction(newUser, false);
 
       const balance = await BalanceService.getBalance(newUser.id);
       expect(balance.amount.amount).to.equal(-amount.amount);
     });
     it('should return correct balance for new user with single incoming transaction', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const { amount } = await addTransaction(newUser, true);
 
       const balance = await BalanceService.getBalance(newUser.id);
       expect(balance.amount.amount).to.equal(amount.amount);
     });
     it('should correctly return balance for new user with single outgoing transfer', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const { amount } = await addTransfer(newUser, false);
 
       const balance = await BalanceService.getBalance(newUser.id);
       expect(balance.amount.amount).to.equal(-amount.amount);
     });
     it('should correctly return balance for new user with single incoming transfer', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const { amount } = await addTransfer(newUser, true);
 
       const balance = await BalanceService.getBalance(newUser.id);
       expect(balance.amount.amount).to.equal(amount.amount);
     });
     it('should return correct balance for new user with two outgoing transactions and balance cache', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const {
         transaction, amount,
       } = await addTransaction(newUser, false, new Date(new Date().getTime() - 5000));
@@ -445,7 +446,7 @@ describe('BalanceService', (): void => {
       expect(balance.amount.amount).to.equal(-amount.amount - transaction2.amount.amount);
     });
     it('should return correct balance for new user with two incoming transactions and balance cache', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const {
         transaction, amount,
       } = await addTransaction(newUser, true, new Date(new Date().getTime() - 5000));
@@ -462,7 +463,7 @@ describe('BalanceService', (): void => {
       expect(balance.amount.amount).to.equal(amount.amount + transaction2.amount.amount);
     });
     it('should correctly return balance for new user with two outgoing transfers with balance cache', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const {
         transfer, amount,
       } = await addTransfer(newUser, false, new Date(new Date().getTime() - 5000));
@@ -478,7 +479,7 @@ describe('BalanceService', (): void => {
       expect(balance.amount.amount).to.equal(-amount.amount - transfer2.amount.amount);
     });
     it('should correctly return balance for new user with single incoming transfer', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const {
         transfer, amount,
       } = await addTransfer(newUser, true, new Date(new Date().getTime() - 5000));
@@ -494,7 +495,7 @@ describe('BalanceService', (): void => {
       expect(balance.amount.amount).to.equal(amount.amount + transfer2.amount.amount);
     });
     it('should correctly return balance for new user with incoming and outgoing transactions and transfers', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       await addTransaction(newUser, false);
       await addTransaction(newUser, true);
       await addTransfer(newUser, false);
@@ -504,7 +505,7 @@ describe('BalanceService', (): void => {
       expect(balance.amount.amount).to.equal(0);
     });
     it('should correctly return balance for new user with incoming and outgoing transactions and transfers with cache', async () => {
-      const newUser = await (await UserFactory().default()).get();
+      const newUser = await (await UserFactory()).get();
       const transaction = await addTransaction(newUser, false);
       const transfer = await addTransfer(newUser, false);
       await Balance.save([{
@@ -535,9 +536,9 @@ describe('BalanceService', (): void => {
         where: { userId: newUser.id },
         relations: ['user', 'lastTransaction', 'lastTransfer'],
       });
-      expect(removedBalanceCache).to.be.undefined;
+      expect(removedBalanceCache).to.be.null;
       expect(await Transaction.findOne({ where: { id: transaction.transaction.id } }))
-        .to.be.undefined;
+        .to.be.null;
       expect(await Transfer.findOne({ where: { id: transfer.transfer.id } }))
         .to.not.be.undefined;
 
@@ -549,8 +550,8 @@ describe('BalanceService', (): void => {
         + transfer2.amount.amount - transfer.amount.amount);
     });
     it('should return 0 if date before first transaction and transfer', async () => {
-      const transaction = await Transaction.findOne({ order: { createdAt: 'ASC' } });
-      const transfer = await Transfer.findOne({ order: { createdAt: 'ASC' } });
+      const transaction = await Transaction.findOne({ where: {}, order: { createdAt: 'ASC' } });
+      const transfer = await Transfer.findOne({ where: {}, order: { createdAt: 'ASC' } });
       const date = new Date(Math.min(
         transaction.createdAt.getTime(), transfer.createdAt.getTime(),
       ) - 1000);
@@ -565,8 +566,8 @@ describe('BalanceService', (): void => {
       }
     });
     it('should return current balance if date before first transaction and transfer', async () => {
-      const transaction = await Transaction.findOne({ order: { createdAt: 'DESC' } });
-      const transfer = await Transfer.findOne({ order: { createdAt: 'DESC' } });
+      const transaction = await Transaction.findOne({ where: {}, order: { createdAt: 'DESC' } });
+      const transfer = await Transfer.findOne({ where: {}, order: { createdAt: 'DESC' } });
       const date = new Date(Math.max(
         transaction.createdAt.getTime(), transfer.createdAt.getTime(),
       ) + 1000);

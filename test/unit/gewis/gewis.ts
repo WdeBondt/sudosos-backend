@@ -153,6 +153,7 @@ describe('GEWIS Helper functions', async (): Promise<void> => {
   });
 
   after(async () => {
+    await ctx.connection.dropDatabase();
     await ctx.connection.close();
     restoreLDAPEnv(ldapEnvVariables);
   });
@@ -164,7 +165,7 @@ describe('GEWIS Helper functions', async (): Promise<void> => {
 
   describe('GEWIS LDAP Authentication', () => {
     it('should bind to GEWIS User if already exists', async () => {
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         const ADuser = {
           ...ctx.validADUser, givenName: `Sudo #${user.firstName}`, sn: `SOS #${user.lastName}`, objectGUID: user.id, employeeNumber: `${user.id}`,
         };
@@ -195,14 +196,14 @@ describe('GEWIS Helper functions', async (): Promise<void> => {
       });
     });
     it('should login and create a user + GEWIS user using LDAP ', async () => {
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         const ADuser = {
           ...ctx.validADUser, givenName: `Sudo #${user.firstName}`, sn: `SOS #${user.lastName}`, objectGUID: user.id, employeeNumber: `${user.id}`,
         };
         let DBUser = await User.findOne(
           { where: { firstName: ctx.validADUser.givenName, lastName: ctx.validADUser.sn } },
         );
-        expect(DBUser).to.be.undefined;
+        expect(DBUser).to.be.null;
         const userCount = await User.count();
         const gewisUserCount = await GewisUser.count();
 
@@ -221,7 +222,7 @@ describe('GEWIS Helper functions', async (): Promise<void> => {
 
         userIsAsExpected(authUser, ADuser);
 
-        const gewisUser = await GewisUser.findOne({ where: { user: authUser } });
+        const gewisUser = await GewisUser.findOne({ where: { user: { id: authUser.id } } });
         expect(gewisUser.gewisId).to.be.equal(user.id);
 
         expect(await User.count()).to.be.equal(userCount + 1);
@@ -252,7 +253,7 @@ describe('GEWIS Helper functions', async (): Promise<void> => {
         .set('Authorization', `Bearer ${ctx.adminToken}`);
       expect(res.status).to.equal(200);
       (res.body as PaginatedUserResponse).records.forEach((userResponse: GewisUserResponse) => {
-        const validation = ctx.spec.validateModel('GewisUserResponse', userResponse, false, true);
+        const validation = ctx.spec.validateModel('GewisUserResponse', userResponse, true, true);
         expect(validation.valid).to.be.true;
       });
     });

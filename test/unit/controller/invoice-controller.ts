@@ -15,7 +15,7 @@
  *  You should have received a copy of the GNU Affero General Public License
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Connection } from 'typeorm';
+import { Connection, In } from 'typeorm';
 import express, { Application } from 'express';
 import { SwaggerSpecification } from 'swagger-model-validator';
 import { json } from 'body-parser';
@@ -28,7 +28,6 @@ import {
   seedAllPointsOfSale,
   seedAllProducts,
   seedInvoices,
-  seedPointsOfSale,
   seedProductCategories,
   seedTransactions, seedVatGroups,
 } from '../../seed';
@@ -114,9 +113,8 @@ describe('InvoiceController', async () => {
       containers,
       containerRevisions,
     } = await seedAllContainers([adminUser, localUser], productRevisions, products);
-    await seedAllPointsOfSale([adminUser, localUser], containerRevisions, containers);
-    const { pointOfSaleRevisions } = await seedPointsOfSale(
-      [adminUser, localUser], containerRevisions,
+    const { pointOfSaleRevisions } = await seedAllPointsOfSale(
+      [adminUser, localUser], containerRevisions, containers,
     );
     const { transactions } = await seedTransactions([adminUser, localUser], pointOfSaleRevisions);
     await seedInvoices([invoiceUser], transactions);
@@ -187,6 +185,7 @@ describe('InvoiceController', async () => {
   });
 
   after(async () => {
+    await ctx.connection.dropDatabase();
     await ctx.connection.close();
   });
 
@@ -322,7 +321,7 @@ describe('InvoiceController', async () => {
       expectError(req, 'Custom entries: description: must be a non-zero length string.');
     });
     it('should disallow double invoicing of a transaction', async () => {
-      await inUserContext(await UserFactory().clone(2), async (debtor: User, creditor: User) => {
+      await inUserContext((await UserFactory()).clone(2), async (debtor: User, creditor: User) => {
         const transactionRequests: TransactionRequest[] = await createTransactionRequest(
           debtor.id, creditor.id, 2,
         );
@@ -336,7 +335,7 @@ describe('InvoiceController', async () => {
           transactionIDs: tIds,
         };
 
-        const transactions = await Transaction.findByIds(tIds, { relations: ['subTransactions', 'subTransactions.subTransactionRows', 'subTransactions.subTransactionRows.invoice'] });
+        const transactions = await Transaction.find({ where: { id: In(tIds) }, relations: ['subTransactions', 'subTransactions.subTransactionRows', 'subTransactions.subTransactionRows.invoice'] });
         const subIDs: number[] = [];
         transactions.forEach((t) => {
           t.subTransactions.forEach((tSub) => {
@@ -356,7 +355,7 @@ describe('InvoiceController', async () => {
       await testValidationOnRoute('post', '/invoices');
     });
     it('should create an Invoice with only custom entries and return an HTTP 200 if admin', async () => {
-      await inUserContext(await UserFactory().clone(2), async (debtor: User, creditor: User) => {
+      await inUserContext((await UserFactory()).clone(2), async (debtor: User, creditor: User) => {
         const count = await Invoice.count();
         const newRequest: CreateInvoiceRequest = {
           ...ctx.validInvoiceRequest,
@@ -392,7 +391,7 @@ describe('InvoiceController', async () => {
       });
     });
     it('should return an HTTP 403 if not admin', async () => {
-      await inUserContext(await UserFactory().clone(2), async (debtor: User, creditor: User) => {
+      await inUserContext((await UserFactory()).clone(2), async (debtor: User, creditor: User) => {
         const newRequest = {
           ...ctx.validInvoiceRequest,
           toId: debtor.id,
@@ -407,7 +406,7 @@ describe('InvoiceController', async () => {
       });
     });
     it('should create an Invoice and return an HTTP 200 if admin', async () => {
-      await inUserContext(await UserFactory().clone(2), async (debtor: User, creditor: User) => {
+      await inUserContext((await UserFactory()).clone(2), async (debtor: User, creditor: User) => {
         // Spent money.
         const transactions: TransactionRequest[] = await createTransactionRequest(
           debtor.id, creditor.id, 2,
@@ -437,7 +436,7 @@ describe('InvoiceController', async () => {
       });
     });
     it('should create an Invoice with custom entries and return an HTTP 200 if admin', async () => {
-      await inUserContext(await UserFactory().clone(2), async (debtor: User, creditor: User) => {
+      await inUserContext((await UserFactory()).clone(2), async (debtor: User, creditor: User) => {
         const count = await Invoice.count();
         const newRequest: CreateInvoiceRequest = {
           ...ctx.validInvoiceRequest,

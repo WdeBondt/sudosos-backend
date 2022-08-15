@@ -42,6 +42,8 @@ import ResetLocalRequest from '../../../src/controller/request/reset-local-reque
 import { inUserContext, UserFactory } from '../../helpers/user-factory';
 import AuthenticationService from '../../../src/service/authentication-service';
 import AuthenticationResetTokenRequest from '../../../src/controller/request/authentication-reset-token-request';
+import EanAuthenticator from '../../../src/entity/authenticator/ean-authenticator';
+import AuthenticationEanRequest from '../../../src/controller/request/authentication-ean-request';
 
 describe('AuthenticationController', async (): Promise<void> => {
   let ctx: {
@@ -107,6 +109,11 @@ describe('AuthenticationController', async (): Promise<void> => {
     await seedHashAuthenticator([ctx.user, ctx.user2], PinAuthenticator);
     await seedHashAuthenticator([ctx.user, ctx.user2], LocalAuthenticator);
 
+    await EanAuthenticator.save({
+      userId: ctx.user.id,
+      eanCode: '39',
+    });
+
     // Silent in-dependency logs unless really wanted by the environment.
     const logger = log4js.getLogger('Console');
     logger.level = process.env.LOG_LEVEL;
@@ -123,6 +130,7 @@ describe('AuthenticationController', async (): Promise<void> => {
   });
   afterEach(async () => {
     process.env.NODE_ENV = ctx.env;
+    await ctx.connection.dropDatabase();
     await ctx.connection.close();
   });
 
@@ -323,9 +331,17 @@ describe('AuthenticationController', async (): Promise<void> => {
       expect(res.body.message).to.equal('Invalid credentials.');
     });
   });
+
+  describe('POST /authentication/ean', async () => {
+    const validLocalRequest: AuthenticationEanRequest = {
+      eanCode: '39',
+    };
+    await testHashAuthentication('ean', validLocalRequest, { ...validLocalRequest, eanCode: '2' });
+  });
+
   describe('POST /authentication/local/reset', async () => {
     it('should return an HTTP 204', async () => {
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         const req: ResetLocalRequest = {
           accountMail: user.email,
         };
@@ -347,7 +363,7 @@ describe('AuthenticationController', async (): Promise<void> => {
   });
   describe('PUT /authentication/local', () => {
     it('should reset local if token is correct', async () => {
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         // eslint-disable-next-line no-param-reassign
         user.type = UserType.LOCAL_USER;
         await User.save(user);
@@ -376,7 +392,7 @@ describe('AuthenticationController', async (): Promise<void> => {
       });
     });
     it('should return an HTTP 403 if user does not exist', async () => {
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         // eslint-disable-next-line no-param-reassign
         user.type = UserType.LOCAL_USER;
         await User.save(user);
@@ -396,7 +412,7 @@ describe('AuthenticationController', async (): Promise<void> => {
       });
     });
     it('should return an HTTP 403 if the user has requested no reset', async () => {
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         // eslint-disable-next-line no-param-reassign
         user.type = UserType.LOCAL_USER;
         await User.save(user);
@@ -417,7 +433,7 @@ describe('AuthenticationController', async (): Promise<void> => {
     it('should return an HTTP 403 if the token is expired', async () => {
       const { RESET_TOKEN_EXPIRES } = process.env;
       process.env.RESET_TOKEN_EXPIRES = '0';
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         // eslint-disable-next-line no-param-reassign
         user.type = UserType.LOCAL_USER;
         await User.save(user);
@@ -440,7 +456,7 @@ describe('AuthenticationController', async (): Promise<void> => {
       process.env.RESET_TOKEN_EXPIRES = RESET_TOKEN_EXPIRES;
     });
     it('should return an HTTP 403 if the wrong token password is provided', async () => {
-      await inUserContext(await UserFactory().clone(1), async (user: User) => {
+      await inUserContext((await UserFactory()).clone(1), async (user: User) => {
         // eslint-disable-next-line no-param-reassign
         user.type = UserType.LOCAL_USER;
         await User.save(user);

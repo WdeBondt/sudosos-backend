@@ -175,12 +175,13 @@ export default class ProductService {
     return {
       id: rawProduct.id,
       revision: rawProduct.revision,
-      alcoholPercentage: rawProduct.alcoholpercentage,
+      alcoholPercentage: typeof rawProduct.alcoholpercentage === 'string' ? parseFloat(rawProduct.alcoholpercentage) : rawProduct.alcoholpercentage,
       category: {
         id: rawProduct.category_id,
         name: rawProduct.category_name,
       },
-      createdAt: rawProduct.createdAt,
+      createdAt: rawProduct.createdAt instanceof Date ? rawProduct.createdAt.toISOString() : rawProduct.createdAt,
+      updatedAt: rawProduct.updatedAt instanceof Date ? rawProduct.updatedAt.toISOString() : rawProduct.updatedAt,
       owner: {
         id: rawProduct.owner_id,
         firstName: rawProduct.owner_firstName,
@@ -370,7 +371,9 @@ export default class ProductService {
         'category.name AS category_name',
         'productrevision.alcoholpercentage AS alcoholpercentage',
         'image.downloadName as image',
-      ]);
+      ])
+      .orderBy({ 'productrevision.name': 'ASC' });
+
     return builder;
   }
 
@@ -413,7 +416,8 @@ export default class ProductService {
         'category.name AS category_name',
         'updatedproduct.alcoholpercentage AS alcoholpercentage',
         'image.downloadName as image',
-      ]);
+      ])
+      .orderBy('updatedproduct.name', 'ASC');
 
     return builder;
   }
@@ -451,7 +455,7 @@ export default class ProductService {
   public static async updateProduct(update: UpdateProductParams)
     : Promise<ProductResponse> {
     // Get the base product.
-    const base: Product = await Product.findOne(update.id);
+    const base: Product = await Product.findOne({ where: { id: update.id } });
 
     // return undefined if not found or request is invalid
     if (!base) {
@@ -483,7 +487,7 @@ export default class ProductService {
    */
   public static async createProduct(product: CreateProductParams, approve = false)
     : Promise<UpdatedProductResponse> {
-    const owner = await User.findOne(product.ownerId);
+    const owner = await User.findOne({ where: { id: product.ownerId } });
 
     if (!owner) return undefined;
 
@@ -545,7 +549,7 @@ export default class ProductService {
    */
   public static async approveProductUpdate(productId: number)
     : Promise<ProductResponse> {
-    const base: Product = await Product.findOne(productId);
+    const base: Product = await Product.findOne({ where: { id: productId } });
     const rawUpdateProduct = await UpdatedProduct.findOne({ where: { product: { id: productId } }, relations: ['category', 'vat'] });
 
     // return undefined if not found or request is invalid
@@ -576,7 +580,7 @@ export default class ProductService {
 
   public static async directProductUpdate(updateRequest: UpdateProductParams)
     : Promise<ProductResponse> {
-    const base: Product = await Product.findOne(updateRequest.id);
+    const base: Product = await Product.findOne({ where: { id: updateRequest.id } });
     await this.applyProductUpdate(base, updateRequest);
     return (this.getProducts({ productId: base.id }).then((p) => p.records[0]));
   }

@@ -16,27 +16,10 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {
-  BaseEntity, Column, Entity, JoinColumn, OneToOne, PrimaryColumn,
-} from 'typeorm';
-import User from '../../entity/user/user';
-
 /**
- * @typedef {BaseEntity} GewisUser
- * @property {User.model} user.required - The user.
- * @property {integer} gewisId.required - The id of the member.
+ * @typedef AuthenticationEanRequest
+ * @property {string} eanCode.required
  */
-@Entity()
-export default class GewisUser extends BaseEntity {
-  @PrimaryColumn()
-  public userId: number;
-
-  @OneToOne(() => User, { nullable: false })
-  @JoinColumn({ name: 'userId' })
-  public user: User;
-
-  @Column({
-    type: 'integer',
-  })
-  public gewisId: number;
+export default interface AuthenticationEanRequest {
+  eanCode: string;
 }

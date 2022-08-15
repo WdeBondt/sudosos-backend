@@ -33,7 +33,7 @@ import User, { UserType } from '../entity/user/user';
 import TransferService from './transfer-service';
 import { RequestWithToken } from '../middleware/token-middleware';
 import { asDate } from '../helpers/validators';
-import { dateToUTC, toMySQLString } from '../helpers/timestamps';
+import { toMySQLString } from '../helpers/timestamps';
 
 export interface PayoutRequestFilters {
   id?: number | number[],
@@ -92,8 +92,6 @@ export default class PayoutRequestService {
         lastName: req.requestedBy.lastName,
         deleted: req.requestedBy.deleted,
         active: req.requestedBy.active,
-        acceptedToS: req.requestedBy.acceptedToS,
-        extensiveDataProcessing: req.requestedBy.extensiveDataProcessing,
       },
       approvedBy: req.approvedBy == null ? undefined : {
         id: req.approvedBy.id,
@@ -104,8 +102,6 @@ export default class PayoutRequestService {
         lastName: req.approvedBy.lastName,
         deleted: req.approvedBy.deleted,
         active: req.approvedBy.active,
-        acceptedToS: req.approvedBy.acceptedToS,
-        extensiveDataProcessing: req.approvedBy.extensiveDataProcessing,
       },
       status: req.payoutRequestStatus.map((status): PayoutRequestStatusResponse => ({
         id: status.id,
@@ -144,8 +140,8 @@ export default class PayoutRequestService {
       .leftJoinAndSelect('payoutRequest.approvedBy', 'approvedBy')
       .distinct(true);
 
-    if (fromDate) builder.andWhere('"payoutRequest"."createdAt" >= :fromDate', { fromDate: toMySQLString(dateToUTC(fromDate)) });
-    if (tillDate) builder.andWhere('"payoutRequest"."createdAt" < :tillDate', { tillDate: toMySQLString(dateToUTC(tillDate)) });
+    if (fromDate) builder.andWhere('payoutRequest.createdAt >= :fromDate', { fromDate: toMySQLString(fromDate) });
+    if (tillDate) builder.andWhere('payoutRequest.createdAt < :tillDate', { tillDate: toMySQLString(tillDate) });
     const mapping = {
       id: 'payoutRequest.id',
       requestedById: 'payoutRequest.requestedById',
@@ -188,8 +184,6 @@ export default class PayoutRequestService {
           active: o.from_active === 1,
           deleted: o.from_deleted === 1,
           type: o.requestedBy_type,
-          acceptedToS: o.requestedBy_acceptedToS,
-          extensiveDataProcessing: o.requestedBy_extensiveDataProcessing,
         } : undefined,
         approvedBy: o.approvedBy_id ? {
           id: o.approvedBy_id,
@@ -200,8 +194,6 @@ export default class PayoutRequestService {
           active: o.from_active === 1,
           deleted: o.from_deleted === 1,
           type: o.approvedBy_type,
-          acceptedToS: o.approvedBy_acceptedToS,
-          extensiveDataProcessing: o.approvedBy_extensiveDataProcessing,
         } : undefined,
         amount: dinero.toObject(),
         status: o.status || '',
@@ -223,11 +215,12 @@ export default class PayoutRequestService {
    */
   public static async getSinglePayoutRequest(id: number)
     : Promise<PayoutRequestResponse | undefined> {
-    const payoutRequest = await PayoutRequest.findOne(id, {
+    const payoutRequest = await PayoutRequest.findOne({
+      where: { id },
       relations: ['requestedBy', 'approvedBy', 'payoutRequestStatus'],
     });
 
-    if (payoutRequest === undefined) return undefined;
+    if (payoutRequest == null) return undefined;
 
     return PayoutRequestService.asPayoutRequestResponse(payoutRequest);
   }
@@ -317,7 +310,8 @@ export default class PayoutRequestService {
   public static async updateStatus(
     id: number, state: PayoutRequestState, user: User,
   ): Promise<PayoutRequestResponse | undefined> {
-    const payoutRequest = await PayoutRequest.findOne(id, {
+    const payoutRequest = await PayoutRequest.findOne({
+      where: { id },
       relations: ['requestedBy'],
     });
 

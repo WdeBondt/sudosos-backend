@@ -33,6 +33,10 @@ import AuthenticationPinRequest from './request/authentication-pin-request';
 import LocalAuthenticator from '../entity/authenticator/local-authenticator';
 import ResetLocalRequest from './request/reset-local-request';
 import AuthenticationResetTokenRequest from './request/authentication-reset-token-request';
+import AuthenticationEanRequest from './request/authentication-ean-request';
+import EanAuthenticator from '../entity/authenticator/ean-authenticator';
+import Mailer from '../mailer';
+import PasswordReset from '../mailer/templates/password-reset';
 
 /**
  * The authentication controller is responsible for:
@@ -109,6 +113,13 @@ export default class AuthenticationController extends BaseController {
           handler: this.createResetToken.bind(this),
         },
       },
+      '/ean': {
+        POST: {
+          body: { modelName: 'AuthenticationEanRequest' },
+          policy: async () => true,
+          handler: this.eanLogin.bind(this),
+        },
+      },
     };
   }
 
@@ -123,7 +134,7 @@ export default class AuthenticationController extends BaseController {
     if (process.env.NODE_ENV !== 'development') return false;
 
     // Check the existence of the user
-    const user = await User.findOne({ id: body.userId });
+    const user = await User.findOne({ where: { id: body.userId } });
     if (!user) return false;
 
     return true;
@@ -174,7 +185,7 @@ export default class AuthenticationController extends BaseController {
         return;
       }
 
-      const pinAuthenticator = await PinAuthenticator.findOne({ where: { user }, relations: ['user'] });
+      const pinAuthenticator = await PinAuthenticator.findOne({ where: { user: { id: user.id } }, relations: ['user'] });
       if (!pinAuthenticator) {
         res.status(403).json({
           message: 'Invalid credentials.',
@@ -278,7 +289,7 @@ export default class AuthenticationController extends BaseController {
         return;
       }
 
-      const localAuthenticator = await LocalAuthenticator.findOne({ where: { user }, relations: ['user'] });
+      const localAuthenticator = await LocalAuthenticator.findOne({ where: { user: { id: user.id } }, relations: ['user'] });
       if (!localAuthenticator) {
         res.status(403).json({
           message: 'Invalid credentials.',
@@ -365,12 +376,48 @@ export default class AuthenticationController extends BaseController {
         return;
       }
 
-      await AuthenticationService.createResetToken(user);
+      const resetTokenInfo = await AuthenticationService.createResetToken(user);
+      Mailer.getInstance().send(user, new PasswordReset({ email: user.email, name: user.firstName, resetTokenInfo }));
       // send email with link.
       res.status(204).send();
       return;
     } catch (error) {
       this.logger.error('Could not create reset token:', error);
+      res.status(500).json('Internal server error.');
+    }
+  }
+
+  /**
+   * EAN login and hand out token
+   * @route POST /authentication/ean
+   * @group authenticate - Operations of authentication controller
+   * @param {AuthenticationEanRequest.model} req.body.required - The EAN login.
+   * @returns {AuthenticationResponse.model} 200 - The created json web token.
+   * @returns {string} 403 - Authentication error.
+   */
+  public async eanLogin(req: Request, res: Response): Promise<void> {
+    const body = req.body as AuthenticationEanRequest;
+    this.logger.trace('EAN authentication for ean', body.eanCode);
+
+    try {
+      const { eanCode } = body;
+      const authenticator = await EanAuthenticator.findOne({ where: { eanCode } });
+      if (authenticator == null || authenticator.user == null) {
+        res.status(403).json({
+          message: 'Invalid credentials.',
+        });
+        return;
+      }
+
+      const context: AuthenticationContext = {
+        roleManager: this.roleManager,
+        tokenHandler: this.tokenHandler,
+      };
+
+      const token = await AuthenticationService.getSaltedToken(authenticator.user, context, true);
+      res.json(token);
+    } catch (error) {
+      this.logger.error('Could not authenticate using EAN:', error);
       res.status(500).json('Internal server error.');
     }
   }
@@ -388,7 +435,7 @@ export default class AuthenticationController extends BaseController {
     this.logger.trace('Mock authentication for user', body.userId);
 
     try {
-      const user = await User.findOne({ id: body.userId });
+      const user = await User.findOne({ where: { id: body.userId } });
       const contents = await AuthenticationService.makeJsonWebToken(
         { tokenHandler: this.tokenHandler, roleManager: this.roleManager }, user, false,
       );
