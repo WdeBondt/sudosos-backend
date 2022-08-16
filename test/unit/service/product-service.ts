@@ -510,7 +510,6 @@ describe('ProductService', async (): Promise<void> => {
       expect(product).to.exist;
     });
   });
-
   describe('createProduct function', () => {
     it('should create the product without update if approve is true', async () => {
       const creation: CreateProductParams = {
