@@ -25,10 +25,14 @@ import { DineroObjectRequest } from './dinero-request';
  * @property {integer} type - Type of transfer
  * @property {integer} fromId - from which user the money is being transferred
  * @property {integer} toId - to which user the money is being transferred.
+ * @property {integer} depositId - the deposit to which this invoice is linked.
+ * @property {integer} invoiceId - the deposit to which this invoice is linked.
  */
 export default interface TransferRequest {
   amount: DineroObjectRequest;
   description: string;
   fromId: number;
   toId: number;
+  depositId?: number,
+  invoiceId?: number,
 }

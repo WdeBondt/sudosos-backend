@@ -46,6 +46,7 @@ import User from '../entity/user/user';
 import DineroTransformer from '../entity/transformer/dinero-transformer';
 import SubTransactionRow from '../entity/transactions/sub-transaction-row';
 import { parseUserToBaseResponse } from '../helpers/revision-to-response';
+import Transfer from '../entity/transactions/transfer';
 
 export interface InvoiceFilterParameters {
   /**
@@ -396,6 +397,12 @@ export default class InvoiceService {
     return validInvoices[validInvoices.length - 1];
   }
 
+  private static async setTransferInvoice(invoice: Invoice, transferId: number) {
+    const transfer = await Transfer.findOne({ where: { id: transferId } });
+    transfer.invoice = invoice;
+    return Transfer.save(transfer);
+  }
+
   /**
    * Creates an Invoice from an CreateInvoiceRequest
    * @param invoiceRequest - The Invoice request to create
@@ -450,6 +457,7 @@ export default class InvoiceService {
       await InvoiceStatus.save(invoiceStatus);
       await this.setTransactionInvoice(newInvoice, transactions);
       await this.createInvoiceEntriesTransactions(newInvoice, transactions);
+      await this.setTransferInvoice(newInvoice, transfer.id);
       if (invoiceRequest.customEntries) {
         await this.AddCustomEntries(newInvoice, invoiceRequest.customEntries);
       }
