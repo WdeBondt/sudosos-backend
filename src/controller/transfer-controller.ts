@@ -20,7 +20,7 @@ import log4js, { Logger } from 'log4js';
 import BaseController, { BaseControllerOptions } from './base-controller';
 import Policy from './policy';
 import { RequestWithToken } from '../middleware/token-middleware';
-import TransferService from '../service/transfer-service';
+import TransferService, { parseAggregateTransferParameters, parseGetTransferFilters } from '../service/transfer-service';
 import TransferRequest from './request/transfer-request';
 import Transfer from '../entity/transactions/transfer';
 import { parseRequestPagination } from '../helpers/pagination';
@@ -49,6 +49,12 @@ export default class TransferController extends BaseController {
           body: { modelName: 'TransferRequest' },
           policy: async (req) => this.roleManager.can(req.token.roles, 'create', 'all', 'Transfer', ['*']),
           handler: this.postTransfer.bind(this),
+        },
+      },
+      '/aggregate': {
+        GET: {
+          policy: async (req) => this.roleManager.can(req.token.roles, 'get', 'all', 'Transfer', ['*']),
+          handler: this.returnAggregatedTransfers.bind(this),
         },
       },
       '/:id(\\d+)': {
@@ -112,6 +118,40 @@ export default class TransferController extends BaseController {
       res.json(transfers);
     } catch (error) {
       this.logger.error('Could not return all transfers:', error);
+      res.status(500).json('Internal server error.');
+    }
+  }
+
+  /**
+   * Returns aggregated transfers
+   * @route GET /transfers/aggregate
+   * @group transfers - Operations of transfer controller
+   * @security JWT
+   * @param {string} fromDate.query - Start date for selected transfers (inclusive)
+   * @param {string} tillDate.query - End date for selected transfers (exclusive)
+   * @param {boolean} isInvoice.query - If the aggregation should concern invoices.
+   * @param {boolean} isDeposit.query - If the aggregation should concern deposits.
+   * @param {boolean} isPayout.query - If the aggregation should concern payout requests.
+   * @returns {AggregatedTransferResponse.model} 200 - The aggregated transfer
+   * @returns {string} 500 - Internal server error
+   */
+  public async returnAggregatedTransfers(req: RequestWithToken, res: Response): Promise<void> {
+    const { body } = req;
+    this.logger.trace('Get aggregated transfers by user', body, 'by user', req.token.user);
+
+    let params;
+    try {
+      params = parseAggregateTransferParameters(req);
+    } catch (e) {
+      res.status(400).json(e.message);
+      return;
+    }
+
+    try {
+      const transfers = await TransferService.getAggregatedTransfers(params);
+      res.json(transfers);
+    } catch (error) {
+      this.logger.error('Could not return aggregated transfers:', error);
       res.status(500).json('Internal server error.');
     }
   }

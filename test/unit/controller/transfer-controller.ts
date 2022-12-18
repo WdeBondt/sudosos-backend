@@ -225,6 +225,18 @@ describe('TransferController', async (): Promise<void> => {
     });
   });
 
+  describe.skip('GET /transfers/aggregate', () => {
+    it('should return the correct model', async () => {
+      // TODO
+    });
+    it('should return an HTTP 200 and the aggregate transfer if admin', async () => {
+      // TODO
+    });
+    it('should return an HTTP 403 if not admin', async () => {
+      // TODO
+    });
+  });
+
   describe('GET /transfers/:id', () => {
     it('should return correct model', async () => {
       const res = await request(app)

@@ -17,17 +17,19 @@
  */
 
 import dinero, { Dinero } from 'dinero.js';
-import {
-  FindManyOptions,
-} from 'typeorm';
+import { FindManyOptions } from 'typeorm';
 import Transfer from '../entity/transactions/transfer';
-import { PaginatedTransferResponse, TransferResponse } from '../controller/response/transfer-response';
+import {
+  AggregatedTransferResponse,
+  PaginatedTransferResponse,
+  TransferResponse,
+} from '../controller/response/transfer-response';
 import TransferRequest from '../controller/request/transfer-request';
 import User from '../entity/user/user';
 import QueryFilter, { FilterMapping } from '../helpers/query-filter';
 import { PaginationParameters } from '../helpers/pagination';
 import { RequestWithToken } from '../middleware/token-middleware';
-import { asNumber } from '../helpers/validators';
+import { asBoolean, asDate, asNumber } from '../helpers/validators';
 import { parseUserToBaseResponse } from '../helpers/revision-to-response';
 import InvoiceService from './invoice-service';
 import StripeService from './stripe-service';
@@ -40,6 +42,14 @@ export interface TransferFilterParameters {
   toId?: number
 }
 
+export interface TransferAggregationParameters {
+  fromDate?: Date,
+  tillDate?: Date,
+  isInvoice?: boolean,
+  isDeposit?: boolean,
+  isPayout?: boolean,
+}
+
 export function parseGetTransferFilters(req: RequestWithToken): TransferFilterParameters {
   const filters: TransferFilterParameters = {
     id: asNumber(req.query.id),
@@ -48,6 +58,16 @@ export function parseGetTransferFilters(req: RequestWithToken): TransferFilterPa
     toId: asNumber(req.query.id),
   };
   return filters;
+}
+
+export function parseAggregateTransferParameters(req: RequestWithToken): TransferAggregationParameters {
+  return {
+    fromDate: asDate(req.query.fromDate),
+    tillDate: asDate(req.query.tillDate),
+    isInvoice: req.query.isInvoice ? asBoolean(req.query.isInvoice) : false,
+    isDeposit: req.query.isDeposit ? asBoolean(req.query.isDeposit) : false,
+    isPayout: req.query.isPayout ? asBoolean(req.query.isPayout) : false,
+  };
 }
 
 export default class TransferService {
@@ -135,6 +155,10 @@ export default class TransferService {
       },
       records,
     };
+  }
+
+  public static async getAggregatedTransfers(params: AggregationParameters): Promise<AggregatedTransferResponse> {
+
   }
 
   public static async postTransfer(request: TransferRequest) : Promise<TransferResponse> {

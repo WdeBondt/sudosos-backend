@@ -141,6 +141,25 @@ describe('TransferService', async (): Promise<void> => {
       expect(res.records[0].payoutRequest).to.not.be.null;
     });
   });
+
+  describe.skip('getAggregateTransfers function', () => {
+    it('should return aggregation of all transfers', async () => {
+      // TODO
+    });
+    it('should adhere to fromDate and tillDate', async () => {
+      // TODO
+    });
+    it('should adhere to isInvoice param', async () => {
+      // TODO
+    });
+    it('should adhere to isPayout param', async () => {
+      // TODO
+    });
+    it('should adhere to isDeposit param', async () => {
+      // TODO
+    });
+  });
+
   describe('postTransfer function', () => {
     it('should be able to post a new transfer', async () => {
       const req: TransferRequest = {

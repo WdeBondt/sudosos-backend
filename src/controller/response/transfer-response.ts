@@ -45,6 +45,20 @@ export interface TransferResponse extends BaseResponse {
 }
 
 /**
+ * @typedef AggregatedTransferResponse
+ * @property {DineroObjectResponse.model} - The sum of all transfers.
+ * @property {integer} count - The amount of transfers aggregated.
+ * @property {string} fromDate - The earliest date of the aggregated transfers.
+ * @property {string} tillDate - The last date of the aggregated transfers
+ */
+export interface AggregatedTransferResponse {
+  sum: DineroObjectResponse;
+  count: number;
+  fromDate: string;
+  tillDate: string;
+}
+
+/**
  * @typedef PaginatedTransferResponse
  * @property {PaginationResult.model} _pagination - Pagination metadata
  * @property {Array<TransferResponse.model>} records - Returned transfers
