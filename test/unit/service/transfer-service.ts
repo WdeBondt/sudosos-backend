@@ -18,14 +18,15 @@
 
 import dinero from 'dinero.js';
 import bodyParser from 'body-parser';
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
 import express, { Application } from 'express';
 import { SwaggerSpecification } from 'swagger-model-validator';
-import { Connection } from 'typeorm';
+import { Connection, IsNull, Not } from 'typeorm';
 import TransferRequest from '../../../src/controller/request/transfer-request';
-import { PaginatedTransferResponse } from '../../../src/controller/response/transfer-response';
+import { PaginatedTransferResponse, TransferResponse } from '../../../src/controller/response/transfer-response';
 import Database from '../../../src/database/database';
 import Transfer from '../../../src/entity/transactions/transfer';
+import Invoice from '../../../src/entity/invoices/invoice';
 import User from '../../../src/entity/user/user';
 import TransferService from '../../../src/service/transfer-service';
 import Swagger from '../../../src/start/swagger';
@@ -39,6 +40,11 @@ import {
   seedUsers,
   seedVatGroups,
 } from '../../seed';
+import deepEqualInAnyOrder from 'deep-equal-in-any-order';
+import StripeDeposit from '../../../src/entity/deposit/stripe-deposit';
+import PayoutRequest from '../../../src/entity/transactions/payout-request';
+
+chai.use(deepEqualInAnyOrder);
 
 describe('TransferService', async (): Promise<void> => {
   let ctx: {
@@ -140,14 +146,50 @@ describe('TransferService', async (): Promise<void> => {
       expect(res.records.length).to.equal(1);
       expect(res.records[0].payoutRequest).to.not.be.null;
     });
+
+    it('should adhere to hasInvoice param', async () => {
+      const transfers: TransferResponse[] = (await TransferService.getTransfers({ hasInvoice: { id : Not(IsNull()) } })).records;
+      const invoices: Invoice[] = await Invoice.find();
+      const ids = transfers.map((t) => t.invoice.id);
+      transfers.forEach((t) => {
+        expect(t.invoice).to.not.be.undefined;
+      });
+      expect(invoices.map((i) => i.id)).to.deep.equalInAnyOrder(ids);
+    });
+
+    it('should adhere to hasDeposit param', async () => {
+      const transfers: TransferResponse[] = (await TransferService.getTransfers({ hasDeposit: { id : Not(IsNull()) } })).records;
+      const deposits: StripeDeposit[] = await StripeDeposit.find({ where: { transfer: { id : Not(IsNull()) } } });
+      const ids = transfers.map((t) => t.deposit.id);
+      transfers.forEach((t) => {
+        expect(t.deposit).to.not.be.undefined;
+      });
+      expect(deposits.map((i) => i.id)).to.deep.equalInAnyOrder(ids);
+    });
+
+    it('should adhere to hasPayout param', async () => {
+      const transfers: TransferResponse[] = (await TransferService.getTransfers({ hasPayout: { id : Not(IsNull()) } })).records;
+      const payouts: PayoutRequest[] = await PayoutRequest.find({ where: { transfer: { id : Not(IsNull()) } } });
+      const ids = transfers.map((t) => t.payoutRequest.id);
+      transfers.forEach((t) => {
+        expect(t.payoutRequest).to.not.be.undefined;
+      });
+      expect(payouts.map((i) => i.id)).to.deep.equalInAnyOrder(ids);
+    });
   });
 
-  describe.skip('getAggregateTransfers function', () => {
+  describe('getAggregateTransfers function', () => {
     it('should return aggregation of all transfers', async () => {
-      // TODO
+      const res = await TransferService.getAggregatedTransfers({});
+      let sum = 0;
+      (await Transfer.find()).forEach((t) => sum += t.amount.getAmount());
+      expect(res.sum.amount).to.eq(sum);
     });
     it('should adhere to fromDate and tillDate', async () => {
-      // TODO
+      const transfer = (await Transfer.find())[0];
+      console.error(transfer.amount.getAmount());
+      const res = await TransferService.getAggregatedTransfers({ fromDate: new Date(transfer.createdAt), tillDate: new Date(transfer.createdAt) });
+      expect(res.sum.amount).to.eq(transfer.amount.getAmount());
     });
     it('should adhere to isInvoice param', async () => {
       // TODO

@@ -23,6 +23,7 @@ import { PaginationResult } from '../../helpers/pagination';
 import { BaseInvoiceResponse } from './invoice-response';
 import { StripeDepositResponse } from './stripe-response';
 import { BasePayoutRequestResponse } from './payout-request-response';
+import { TransferAggregationParameters } from '../../service/transfer-service';
 
 /**
  * @typedef {BaseResponse} TransferResponse
@@ -48,14 +49,12 @@ export interface TransferResponse extends BaseResponse {
  * @typedef AggregatedTransferResponse
  * @property {DineroObjectResponse.model} - The sum of all transfers.
  * @property {integer} count - The amount of transfers aggregated.
- * @property {string} fromDate - The earliest date of the aggregated transfers.
- * @property {string} tillDate - The last date of the aggregated transfers
+ * @property {TransferAggregationParameters} params - The params that created this result.
  */
 export interface AggregatedTransferResponse {
   sum: DineroObjectResponse;
   count: number;
-  fromDate: string;
-  tillDate: string;
+  params: TransferAggregationParameters;
 }
 
 /**

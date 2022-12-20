@@ -17,7 +17,7 @@
  */
 
 import dinero, { Dinero } from 'dinero.js';
-import { FindManyOptions } from 'typeorm';
+import { FindManyOptions, FindOperator, FindOptionsWhere, IsNull, Not, Raw } from 'typeorm';
 import Transfer from '../entity/transactions/transfer';
 import {
   AggregatedTransferResponse,
@@ -34,12 +34,19 @@ import { parseUserToBaseResponse } from '../helpers/revision-to-response';
 import InvoiceService from './invoice-service';
 import StripeService from './stripe-service';
 import PayoutRequestService from './payout-request-service';
+import { DineroObjectResponse } from '../controller/response/dinero-response';
+import { toMySQLString } from '../helpers/timestamps';
 
 export interface TransferFilterParameters {
   id?: number;
   createdById?: number,
   fromId?: number,
-  toId?: number
+  toId?: number,
+  fromDate?: Date,
+  tillDate?: Date,
+  hasInvoice?: { id: FindOperator<any> },
+  hasDeposit?: { id: FindOperator<any> },
+  hasPayout?: { id: FindOperator<any> },
 }
 
 export interface TransferAggregationParameters {
@@ -56,6 +63,9 @@ export function parseGetTransferFilters(req: RequestWithToken): TransferFilterPa
     createdById: asNumber(req.query.id),
     fromId: asNumber(req.query.id),
     toId: asNumber(req.query.id),
+    hasInvoice: req.query.hasInvoice ? { id: Not(IsNull()) } : undefined,
+    hasDeposit: req.query.hasDeposit ? { id: Not(IsNull()) }  : undefined,
+    hasPayout: req.query.hasPayout ? { id: Not(IsNull()) }  : undefined,
   };
   return filters;
 }
@@ -108,18 +118,35 @@ export default class TransferService {
     pagination: PaginationParameters = {}, user?: User)
     : Promise<PaginatedTransferResponse> {
     const { take, skip } = pagination;
+    const {
+      fromDate, tillDate, ...p
+    } = filters;
 
     const filterMapping: FilterMapping = {
       id: 'id',
       fromId: 'fromId',
       toId: 'toId',
       type: 'type',
+      hasInvoice: 'invoice',
+      hasDeposit: 'deposit',
+      hasPayout: 'payoutRequest',
     };
 
-    const whereClause = QueryFilter.createFilterWhereClause(filterMapping, filters);
-    let whereOptions: any = [];
+    let whereClause = QueryFilter.createFilterWhereClause(filterMapping, p);
+    let whereOptions: FindOptionsWhere<Transfer> | FindOptionsWhere<Transfer>[] = [];
 
-    // Apparently this is how you make a and-or clause in typeorm without a query builder.
+    // Filter on time.
+    let timeClause;
+    if (fromDate) timeClause = `transfer.createdAt >= '${toMySQLString(fromDate)}'`;
+    if (tillDate) {
+      const str = `transfer.createdAt < '${toMySQLString(tillDate)}'`;
+      if (timeClause) timeClause = timeClause + ' AND ' + str;
+      else timeClause = str;
+    }
+    whereClause = { ...whereClause, createdAt: Raw(timeClause) };
+
+
+    // Apparently this is how you make an and-or clause in typeorm without a query builder.
     if (user) {
       whereOptions = [{
         fromId: user.id,
@@ -132,6 +159,7 @@ export default class TransferService {
       whereOptions = whereClause;
     }
 
+    console.error(whereOptions);
     const options: FindManyOptions = {
       where: whereOptions,
       relations: ['from', 'to',
@@ -157,8 +185,30 @@ export default class TransferService {
     };
   }
 
-  public static async getAggregatedTransfers(params: AggregationParameters): Promise<AggregatedTransferResponse> {
+  public static async getAggregatedTransfers(params: TransferAggregationParameters): Promise<AggregatedTransferResponse> {
+    const filters: TransferFilterParameters = {
+      tillDate: params.tillDate,
+      fromDate: params.fromDate,
+      // Only Not(IsNull()) does not seem to work. Most likely a bug with TypeORM.
+      hasInvoice: params.isInvoice ? { id: Not(IsNull()) } : undefined,
+      hasDeposit: params.isDeposit ? { id: Not(IsNull()) }  : undefined,
+      hasPayout: params.isPayout ? { id: Not(IsNull()) }  : undefined,
+    };
 
+    console.error('HIERRR?');
+    const transfers: TransferResponse[] = (await this.getTransfers(filters)).records;
+    console.error('HIERRR?');
+    let total = 0;
+    const count = transfers.length;
+
+    transfers.forEach((t) => {
+      total += t.amount.amount;
+    });
+    const sum = dinero({ amount: total }).toObject() as DineroObjectResponse;
+
+    return {
+      sum, count, params,
+    };
   }
 
   public static async postTransfer(request: TransferRequest) : Promise<TransferResponse> {
