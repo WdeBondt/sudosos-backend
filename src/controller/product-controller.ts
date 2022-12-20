@@ -388,6 +388,21 @@ export default class ProductController extends BaseController {
       return;
     }
 
+    const ratio = 1;
+    const maxWidth = 512;
+    let sizeOf = require('buffer-image-size');
+    let dimensions = sizeOf(file.data);
+
+    if (dimensions.width / dimensions.height !== ratio) {
+      res.status(400).send('Image does not have the correct width/height ratio');
+      return;
+    }
+
+    if (dimensions.width > maxWidth){
+      res.status(400).send('Image is too large');
+      return;
+    }
+
     const productId = parseInt(id, 10);
 
     // handle request
