@@ -383,6 +383,11 @@ export default class ProductController extends BaseController {
       return;
     }
 
+    if (!file.mimetype.startsWith('image/')) {
+      res.status(400).send( 'File is not an image' );
+      return;
+    }
+
     const productId = parseInt(id, 10);
 
     // handle request
