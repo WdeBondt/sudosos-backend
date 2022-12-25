@@ -20,7 +20,7 @@ import log4js, { Logger } from 'log4js';
 import BaseController, { BaseControllerOptions } from './base-controller';
 import Policy from './policy';
 import { RequestWithToken } from '../middleware/token-middleware';
-import TransferService, { parseAggregateTransferParameters, parseGetTransferFilters } from '../service/transfer-service';
+import TransferService, { parseAggregateTransferParameters } from '../service/transfer-service';
 import TransferRequest from './request/transfer-request';
 import Transfer from '../entity/transactions/transfer';
 import { parseRequestPagination } from '../helpers/pagination';

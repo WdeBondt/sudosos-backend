@@ -186,10 +186,16 @@ describe('TransferService', async (): Promise<void> => {
       expect(res.sum.amount).to.eq(sum);
     });
     it('should adhere to fromDate and tillDate', async () => {
-      const transfer = (await Transfer.find())[0];
-      console.error(transfer.amount.getAmount());
-      const res = await TransferService.getAggregatedTransfers({ fromDate: new Date(transfer.createdAt), tillDate: new Date(transfer.createdAt) });
-      expect(res.sum.amount).to.eq(transfer.amount.getAmount());
+      const transfers = (await Transfer.find());
+      const transfer = transfers[0];
+      const fromDate = new Date(new Date(transfer.createdAt).getTime() - (24 * 60 * 60 * 1000));
+      const tillDate = new Date(new Date(transfer.createdAt).getTime() + (24 * 60 * 60 * 1000));
+      let sum = 0;
+      transfers.forEach((t) => {
+        if (t.createdAt >= fromDate && t.createdAt <= tillDate) sum += t.amount.getAmount();
+      });
+      const res = await TransferService.getAggregatedTransfers({ fromDate, tillDate });
+      expect(res.sum.amount).to.eq(sum);
     });
     it('should adhere to isInvoice param', async () => {
       // TODO

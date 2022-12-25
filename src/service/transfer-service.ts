@@ -17,7 +17,17 @@
  */
 
 import dinero, { Dinero } from 'dinero.js';
-import { FindManyOptions, FindOperator, FindOptionsWhere, IsNull, Not, Raw } from 'typeorm';
+import {
+  Between,
+  FindManyOptions,
+  FindOperator,
+  FindOptionsWhere,
+  IsNull,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  Not,
+
+} from 'typeorm';
 import Transfer from '../entity/transactions/transfer';
 import {
   AggregatedTransferResponse,
@@ -136,17 +146,16 @@ export default class TransferService {
     let whereOptions: FindOptionsWhere<Transfer> | FindOptionsWhere<Transfer>[] = [];
 
     // Filter on time.
-    let timeClause;
-    if (fromDate) timeClause = `transfer.createdAt >= '${toMySQLString(fromDate)}'`;
-    if (tillDate) {
-      const str = `transfer.createdAt < '${toMySQLString(tillDate)}'`;
-      if (timeClause) timeClause = timeClause + ' AND ' + str;
-      else timeClause = str;
+    if (fromDate && tillDate) {
+      whereClause = { ...whereClause, createdAt: Between(toMySQLString(fromDate), toMySQLString(tillDate)) };
+    } else if (fromDate) {
+      whereClause = { ...whereClause, createdAt: MoreThanOrEqual(toMySQLString(fromDate)) };
+    } else if (tillDate) {
+      whereClause = { ...whereClause, createdAt: LessThanOrEqual(toMySQLString(tillDate)) };
     }
-    whereClause = { ...whereClause, createdAt: Raw(timeClause) };
 
 
-    // Apparently this is how you make an and-or clause in typeorm without a query builder.
+    // Apparently this is how you make an ancreatedAtd-or clause in typeorm without a query builder.
     if (user) {
       whereOptions = [{
         fromId: user.id,
@@ -159,7 +168,6 @@ export default class TransferService {
       whereOptions = whereClause;
     }
 
-    console.error(whereOptions);
     const options: FindManyOptions = {
       where: whereOptions,
       relations: ['from', 'to',
@@ -195,9 +203,7 @@ export default class TransferService {
       hasPayout: params.isPayout ? { id: Not(IsNull()) }  : undefined,
     };
 
-    console.error('HIERRR?');
     const transfers: TransferResponse[] = (await this.getTransfers(filters)).records;
-    console.error('HIERRR?');
     let total = 0;
     const count = transfers.length;
 
