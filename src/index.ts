@@ -62,6 +62,8 @@ import ADService from './service/ad-service';
 import VatGroupController from './controller/vat-group-controller';
 import TestController from './controller/test-controller';
 import AuthenticationSecureController from './controller/authentication-secure-controller';
+import WebSocketService from './service/web-socket-service';
+import WebSocket from 'ws';
 
 export class Application {
   app: express.Express;
@@ -77,6 +79,8 @@ export class Application {
   logger: Logger;
 
   tasks: cron.ScheduledTask[];
+
+  wss: WebSocket.Server<typeof WebSocket, any>;
 
   public async stop(): Promise<void> {
     this.logger.info('Stopping application instance...');
@@ -279,6 +283,11 @@ export default async function createApp(): Promise<Application> {
   logger.info(`Server listening on port ${process.env.HTTP_PORT}.`);
   application.server = application.app.listen(process.env.HTTP_PORT);
   application.logger.info('Application started.');
+
+  // Setup WS
+  new WebSocketService(application);
+  application.logger.info('WebSocket Server started.');
+
   return application;
 }
 
