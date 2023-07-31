@@ -16,6 +16,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
+  AfterInsert, AfterLoad, AfterRemove, AfterUpdate, BeforeInsert, BeforeRemove, BeforeUpdate,
   Entity, ManyToOne, OneToMany,
 } from 'typeorm';
 // eslint-disable-next-line import/no-cycle

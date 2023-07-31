@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-  createConnection, Connection, getConnectionOptions,
+  createConnection, Connection, getConnectionOptions, EventSubscriber,
 } from 'typeorm';
 import User from '../entity/user/user';
 import Product from '../entity/product/product';
@@ -63,6 +63,7 @@ import LocalAuthenticator from '../entity/authenticator/local-authenticator';
 import ResetToken from '../entity/authenticator/reset-token';
 import { DataSourceOptions } from 'typeorm/data-source/DataSourceOptions';
 import KeyAuthenticator from '../entity/authenticator/key-authenticator';
+import { TransactionSubscriber } from "../entity/subscribers/TransactionSubscriber";
 
 export default class Database {
   public static async initialize(): Promise<Connection> {
@@ -73,6 +74,7 @@ export default class Database {
           mysql_clear_password: () => () => Buffer.from(`${process.env.TYPEORM_PASSWORD}\0`),
         },
       },
+      subscribers: [TransactionSubscriber],
       entities: [
         ProductCategory,
         VatGroup,

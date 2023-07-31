@@ -285,7 +285,7 @@ export default async function createApp(): Promise<Application> {
   application.logger.info('Application started.');
 
   // Setup WS
-  new WebSocketService(application);
+  new WebSocketService(application, tokenHandler);
   application.logger.info('WebSocket Server started.');
 
   return application;
