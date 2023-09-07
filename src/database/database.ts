@@ -66,6 +66,7 @@ import KeyAuthenticator from '../entity/authenticator/key-authenticator';
 import Fine from '../entity/fine/fine';
 import FineHandoutEvent from '../entity/fine/fineHandoutEvent';
 import UserFineGroup from '../entity/fine/userFineGroup';
+import ProductInContainer from "../entity/container/product-in-container";
 
 export default class Database {
   public static async initialize(): Promise<Connection> {
@@ -84,6 +85,7 @@ export default class Database {
         UpdatedProduct,
         Container,
         ContainerRevision,
+        ProductInContainer,
         UpdatedContainer,
         PointOfSale,
         PointOfSaleRevision,

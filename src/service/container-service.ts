@@ -45,6 +45,7 @@ import PointOfSaleService from './point-of-sale-service';
 // eslint-disable-next-line import/no-cycle
 import ProductService from './product-service';
 import AuthenticationService from './authentication-service';
+import ProductInContainer from '../entity/container/product-in-container';
 
 interface ContainerVisibility {
   own: boolean;
@@ -165,6 +166,9 @@ export default class ContainerService {
       builder.leftJoinAndSelect(User, 'product_owner', 'product_owner.id = base_product.owner.id');
       builder.leftJoinAndSelect(ProductImage, 'product_image', 'product_image.id = base_product.imageId');
       builder.leftJoinAndSelect('products.vat', 'vat');
+      builder.leftJoinAndSelect(ProductInContainer, 'productincontainer', 'container.id = productincontainer.containerId ' +
+          'AND containerrevision.Revision = productincontainer.containerRevisionNumber AND productincontainer.productId = products.productId');
+
       if (filters.productId) builder.where(`products.productId = ${filters.productId}`);
     }
 

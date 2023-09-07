@@ -59,6 +59,7 @@ import UserFineGroup from '../src/entity/fine/userFineGroup';
 import FineHandoutEvent from '../src/entity/fine/fineHandoutEvent';
 import Fine from '../src/entity/fine/fine';
 import { calculateBalance } from './helpers/balance';
+import ProductInContainer from "../src/entity/container/product-in-container";
 
 /**
  * Defines InvoiceUsers objects for the given Users
@@ -946,6 +947,77 @@ export async function seedAllContainers(
 }
 
 /**
+ * Defines productInContainer objects based on the parameters passed.
+ *
+ * @param productRevision - The ID of the product devision
+ * @param containerRevision - The containerRevision to add to product in Container
+ * @param i - The current number of loop to 'randomly' assign featured and preferred
+ */
+function defineProductInContainer(
+    productId: number,
+    containerRevision: ContainerRevision,
+    i: number,
+): ProductInContainer {
+
+  const featured: boolean = i % 2 == 0;
+  let preferred: boolean;
+
+  if (featured) {
+    preferred = featured;
+  } else if (i % 3 == 0)  {
+    preferred = true;
+  }
+
+  const productInContainer = Object.assign(new ProductInContainer(), {
+    productId: productId,
+    containerRevision: containerRevision,
+    featured: featured,
+    preferred: preferred,
+  });
+
+  return productInContainer;
+}
+
+/**
+ * Seeds a default dataset of container revisions,
+ * based on the supplied user and product dataset.
+ * Every user of type local admin and organ will get containers.
+ *
+ * @param containerRevision - The dataset of container revisions to base the container dataset on.
+ */
+export async function seedProductInContainer(
+    containerRevision: ContainerRevision[],
+): Promise<{
+  productInContainer: ProductInContainer[],
+}> {
+  let productInContainer: ProductInContainer[] = [];
+
+  const promises: Promise<any>[] = [];
+
+  for (let i = 0; i < containerRevision.length; i += 1) {
+    for (let j = 0; j < containerRevision[i].products.length; j += 1) {
+
+      if (containerRevision[i].products[j].productId == null) {
+        break ;
+      }
+
+
+      let prodcon = defineProductInContainer(
+          containerRevision[i].products[j].productId,
+          containerRevision[i],
+          i);
+
+      promises.push(ProductInContainer.save(prodcon));
+
+      productInContainer = productInContainer.concat(prodcon);
+    }
+  }
+  await Promise.all(promises);
+
+  return  { productInContainer };
+}
+
+/**
  * Defines pointsofsale objects based on the parameters passed.
  *
  * @param start - The number of pointsofsale that already exist.
@@ -1776,6 +1848,7 @@ export interface DatabaseContent {
   containers: Container[],
   containerRevisions: ContainerRevision[],
   updatedContainers: UpdatedContainer[],
+  productInContainer: ProductInContainer[],
   pointsOfSale: PointOfSale[],
   pointOfSaleRevisions: PointOfSaleRevision[],
   updatedPointsOfSale: UpdatedPointOfSale[],
@@ -1805,6 +1878,7 @@ export default async function seedDatabase(): Promise<DatabaseContent> {
   const { containers, containerRevisions, updatedContainers } = await seedAllContainers(
     users, productRevisions, products,
   );
+  const { productInContainer } = await seedProductInContainer(containerRevisions);
   const { pointsOfSale, pointOfSaleRevisions, updatedPointsOfSale } = await seedAllPointsOfSale(
     users, containerRevisions, containers,
   );
@@ -1825,6 +1899,7 @@ export default async function seedDatabase(): Promise<DatabaseContent> {
     updatedProducts,
     containers,
     containerRevisions,
+    productInContainer,
     updatedContainers,
     pointsOfSale,
     pointOfSaleRevisions,
