@@ -59,7 +59,7 @@ import UserFineGroup from '../src/entity/fine/userFineGroup';
 import FineHandoutEvent from '../src/entity/fine/fineHandoutEvent';
 import Fine from '../src/entity/fine/fine';
 import { calculateBalance } from './helpers/balance';
-import ProductInContainer from "../src/entity/container/product-in-container";
+import ProductInContainer from '../src/entity/container/product-in-container';
 
 /**
  * Defines InvoiceUsers objects for the given Users
@@ -954,12 +954,19 @@ export async function seedAllContainers(
  * @param i - The current number of loop to 'randomly' assign featured and preferred
  */
 function defineProductInContainer(
-    productId: number,
-    containerRevision: ContainerRevision,
-    i: number,
+  productId: number,
+  containerRevision: ContainerRevision,
+  i: number,
 ): ProductInContainer {
 
-  const featured: boolean = i % 2 == 0;
+  let featured: boolean;
+
+  if (i % 2 == 0) {
+    featured = true;
+  } else  {
+    featured = false;
+  }
+
   let preferred: boolean;
 
   if (featured) {
@@ -986,26 +993,25 @@ function defineProductInContainer(
  * @param containerRevision - The dataset of container revisions to base the container dataset on.
  */
 export async function seedProductInContainer(
-    containerRevision: ContainerRevision[],
+  containerRevision: ContainerRevision[],
 ): Promise<{
-  productInContainer: ProductInContainer[],
-}> {
+    productInContainer: ProductInContainer[],
+  }> {
   let productInContainer: ProductInContainer[] = [];
 
   const promises: Promise<any>[] = [];
 
   for (let i = 0; i < containerRevision.length; i += 1) {
     for (let j = 0; j < containerRevision[i].products.length; j += 1) {
-
-      if (containerRevision[i].products[j].productId == null) {
+      const container = await Container.findOne({ where: { id: containerRevision[i].containerId } });
+      if (containerRevision[i].products[j].productId == null || containerRevision[i].revision != container.currentRevision) {
         break ;
       }
 
-
       let prodcon = defineProductInContainer(
-          containerRevision[i].products[j].productId,
-          containerRevision[i],
-          i);
+        containerRevision[i].products[j].productId,
+        containerRevision[i],
+        i);
 
       promises.push(ProductInContainer.save(prodcon));
 

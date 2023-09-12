@@ -240,6 +240,13 @@ export default class ContainerService {
       } else {
         const productResponse = ProductService.asProductResponse(rawProduct);
 
+        if (response.productincontainer_featured == 1) {
+          productResponse.featured = true;
+        } else productResponse.featured = false;
+        if (response.productincontainer_preferred == 1) {
+          productResponse.preferred = true;
+        } else productResponse.preferred = false;
+
         if (mapping.has(key)) {
           mapping.get(key).products.push(productResponse);
         } else {

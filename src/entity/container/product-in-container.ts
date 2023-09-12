@@ -16,8 +16,8 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-    Column,
-    Entity, JoinColumn, ManyToOne, PrimaryColumn,
+  Column,
+  Entity, JoinColumn, ManyToOne, PrimaryColumn,
 } from 'typeorm';
 import ContainerRevision from './container-revision';
 import { BaseEntity as OrmBaseEntity } from 'typeorm/repository/BaseEntity';
@@ -33,25 +33,22 @@ import { BaseEntity as OrmBaseEntity } from 'typeorm/repository/BaseEntity';
 @Entity('product_in_container')
 export default class ProductInContainer extends OrmBaseEntity {
 
-    @PrimaryColumn()
-    public  readonly productId: number;
+  @PrimaryColumn()
+  public  readonly productId: number;
 
-    @PrimaryColumn()
-    public readonly containerId: number;
+  @PrimaryColumn()
+  public readonly containerId: number;
 
-    @PrimaryColumn()
-    public readonly containerRevisionNumber: number;
+  @ManyToOne(() => ContainerRevision, (containerRevision) => containerRevision.productInContainer)
+  @JoinColumn([
+    { name: 'containerId', referencedColumnName: 'containerId' },
+    { name: 'containerRevisionNumber', referencedColumnName: 'revision' },
+  ])
+  public containerRevision: ContainerRevision;
 
-    @ManyToOne(() => ContainerRevision, (containerRevision) => containerRevision.productInContainer)
-    @JoinColumn([
-        { name: 'containerId', referencedColumnName: 'containerId' },
-        { name: 'containerRevisionNumber', referencedColumnName: 'revision' },
-    ])
-    public containerRevision: ContainerRevision;
+  @Column({ default: false })
+  public featured: boolean;
 
-    @Column({ default: false })
-    public featured: boolean;
-
-    @Column({ default: false })
-    public preferred: boolean;
+  @Column({ default: false })
+  public preferred: boolean;
 }

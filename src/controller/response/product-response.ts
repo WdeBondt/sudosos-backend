@@ -58,6 +58,8 @@ export interface UpdatedProductResponse extends BaseProductResponse {
  */
 export interface ProductResponse extends UpdatedProductResponse {
   revision: number,
+  featured: boolean,
+  preferred: boolean,
 }
 
 /**

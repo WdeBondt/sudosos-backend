@@ -193,6 +193,8 @@ export default class ProductService {
       priceInclVat,
       priceExclVat,
       vat,
+      featured: false,
+      preferred: false,
     };
   }
 
