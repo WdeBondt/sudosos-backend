@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import express, { Router, RequestHandler } from 'express';
-import { SwaggerSpecification } from 'swagger-model-validator';
+import Validator, { SwaggerSpecification } from 'swagger-model-validator';
 import Policy, { MethodPolicy } from './policy';
 import PolicyMiddleware from '../middleware/policy-middleware';
 import RequestValidatorMiddleware from '../middleware/request-validator-middleware';
@@ -30,6 +30,7 @@ import RestrictionMiddleware from '../middleware/restriction-middleware';
 export interface BaseControllerOptions {
   specification: SwaggerSpecification,
   roleManager: RoleManager,
+  validator: Validator,
 }
 
 /**
@@ -47,6 +48,11 @@ export default abstract class BaseController {
    * A reference to the swagger specification passed in the base controller options.
    */
   protected specification: SwaggerSpecification;
+
+  /**
+   * A reference to the swagger validator passed in the base controller options.
+   */
+  protected validator: Validator;
 
   /**
    * A reference to the role manager passed in the base controller options.
@@ -87,6 +93,7 @@ export default abstract class BaseController {
   public constructor(options: BaseControllerOptions) {
     this.router = express.Router({ strict: true });
     this.specification = options.specification;
+    this.validator = options.validator;
     this.roleManager = options.roleManager;
 
     const spec = options.specification;

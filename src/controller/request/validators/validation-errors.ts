@@ -17,7 +17,7 @@
  */
 import { ValidationError } from '../../../helpers/specification-validation';
 
-export const INVALID_PRODUCT_ID = (id: number) => new ValidationError(`ID (${id}) is not a valid product id.`);
+export const INVALID_PRODUCT_ID = (id: number) => new Error(`ID (${id}) is not a valid product id.`);
 
 export const INVALID_PRODUCT_PRICE = () => new ValidationError('Price must be greater than zero');
 

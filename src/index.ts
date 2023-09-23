@@ -21,7 +21,7 @@ import * as util from 'util';
 import * as crypto from 'crypto';
 import { promises as fs } from 'fs';
 import { json } from 'body-parser';
-import { SwaggerSpecification } from 'swagger-model-validator';
+import Validator, { SwaggerSpecification } from 'swagger-model-validator';
 import dinero, { Currency } from 'dinero.js';
 import { config } from 'dotenv';
 import express from 'express';
@@ -65,6 +65,8 @@ export class Application {
   app: express.Express;
 
   specification: SwaggerSpecification;
+
+  validator: Validator;
 
   roleManager: RoleManager;
 
@@ -182,6 +184,7 @@ export default async function createApp(): Promise<Application> {
   // Create express application.
   application.app = express();
   application.specification = await Swagger.initialize(application.app);
+  application.validator = new Validator(application.specification);
   application.app.use(json({
     verify: extractRawBody,
   }));
@@ -222,6 +225,7 @@ export default async function createApp(): Promise<Application> {
   const options: BaseControllerOptions = {
     specification: application.specification,
     roleManager: application.roleManager,
+    validator: application.validator,
   };
   application.app.use('/v1/authentication', new AuthenticationSecureController(options, tokenHandler).getRouter());
   application.app.use('/v1/balances', new BalanceController(options).getRouter());

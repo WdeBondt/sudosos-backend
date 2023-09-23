@@ -20,7 +20,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import express from 'express';
 import swaggerUi from 'express-swaggerize-ui';
-import Validator, { SwaggerSpecification } from 'swagger-model-validator';
+import { SwaggerSpecification } from 'swagger-model-validator';
 import generateSpecAndMount from 'express-swagger-generator';
 
 export default class Swagger {
@@ -60,7 +60,6 @@ export default class Swagger {
     };
 
     const swaggerSpec = swagger(swaggerOptions) as SwaggerSpecification;
-    new Validator(swaggerSpec);
     return swaggerSpec;
   }
 
@@ -76,7 +75,6 @@ export default class Swagger {
     swaggerSpec.host = process.env.API_HOST;
     swaggerSpec.basePath = process.env.API_BASEPATH;
 
-    new Validator(swaggerSpec);
     return swaggerSpec;
   }
 

@@ -27,7 +27,11 @@ import ProductService from '../service/product-service';
 import Container from '../entity/container/container';
 import { asNumber } from '../helpers/validators';
 import { parseRequestPagination } from '../helpers/pagination';
-import { verifyContainerRequest, verifyCreateContainerRequest } from './request/validators/container-request-spec';
+import {
+  addContainerRequestValidators,
+  verifyContainerRequest,
+  verifyCreateContainerRequest,
+} from './request/validators/container-request-spec';
 import { isFail } from '../helpers/specification-validation';
 import {
   CreateContainerParams,
@@ -47,6 +51,7 @@ export default class ContainerController extends BaseController {
   public constructor(options: BaseControllerOptions) {
     super(options);
     this.logger.level = process.env.LOG_LEVEL;
+    addContainerRequestValidators(options.validator);
   }
 
   /**

@@ -48,5 +48,11 @@ declare module 'swagger-model-validator' {
       allowBlankTarget?: boolean,
       disallowExtraProperties?: boolean
     ): ValidationResult;
+
+    addFieldValidator<T>(
+      modelName: string,
+      fieldName: string,
+      validator: (name: string, value: T) => Error | Error[] | null,
+    ): null;
   }
 }

@@ -28,16 +28,41 @@ import {
   ContainerParams, CreateContainerParams,
 } from '../container-request';
 import stringSpec from './string-spec';
-import { INVALID_PRODUCT_ID } from './validation-errors';
+import { INVALID_PRODUCT_ID, ZERO_LENGTH_STRING } from './validation-errors';
 import { ownerIsOrgan } from './general-validators';
+import Validator, { SwaggerSpecification } from 'swagger-model-validator';
 
 /**
  * Validates that param is either a valid Product ID or ProductRequest
  */
-async function validProductId(p: number) {
-  const product = await Product.findOne({ where: { id: p } });
-  if (!product) return toFail(INVALID_PRODUCT_ID(p));
-  return toPass(p);
+async function validProductId(name: string, value: number) {
+  const product = await Product.findOne({ where: { id: value } });
+  if (!product) return INVALID_PRODUCT_ID(value);
+  return null;
+}
+
+async function validProductIds(name: string, value: number[]) {
+  const errors: Error[] = [];
+
+  await Promise.all(value.map(async (id: number) => {
+    const product = await Product.findOne({ where: { id } });
+    if (!product) errors.push(INVALID_PRODUCT_ID(id));
+    return null;
+  }));
+
+  return errors.length > 0 ? errors : null;
+}
+
+function nonZeroString(name: string, value: string) {
+  if (value === '') {
+    return new Error('must be a non-zero length string.');
+  }
+  return null;
+}
+//TODO FIX async validation?
+function baseContainerValidators(validator: Validator) {
+  validator.addFieldValidator('ContainerParams', 'name', nonZeroString);
+  validator.addFieldValidator('ContainerParams', 'products', validProductIds);
 }
 
 /**
@@ -73,4 +98,10 @@ CreateContainerParams) {
   return Promise.resolve(await validateSpecification(
     createContainerRequest, createContainerRequestSpec(),
   ));
+}
+
+
+
+export function addContainerRequestValidators(validator: Validator) {
+  validator.addFieldValidator();
 }
