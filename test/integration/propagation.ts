@@ -40,6 +40,7 @@ import ProductCategory from '../../src/entity/product/product-category';
 import { CreateProductRequest, UpdateProductRequest } from '../../src/controller/request/product-request';
 import { CreateContainerRequest, UpdateContainerRequest } from '../../src/controller/request/container-request';
 import { CreatePointOfSaleRequest } from '../../src/controller/request/point-of-sale-request';
+import Validator from 'swagger-model-validator';
 
 describe('Propagation between products, containers, POSs', () => {
   let ctx: {
@@ -89,6 +90,7 @@ describe('Propagation between products, containers, POSs', () => {
 
     const app = express();
     const specification = await Swagger.initialize(app);
+    const validator = new Validator(specification);
     const all = { all: new Set<string>(['*']) };
 
     const roleManager = new RoleManager();
@@ -120,9 +122,9 @@ describe('Propagation between products, containers, POSs', () => {
       assignmentCheck: async (u: User) => u.type === UserType.LOCAL_ADMIN,
     });
 
-    const productController = new ProductController({ specification, roleManager });
-    const containerController = new ContainerController({ specification, roleManager });
-    const posController = new PointOfSaleController({ specification, roleManager });
+    const productController = new ProductController({ specification, roleManager, validator });
+    const containerController = new ContainerController({ specification, roleManager, validator });
+    const posController = new PointOfSaleController({ specification, roleManager, validator });
     app.use(json());
     app.use(new TokenMiddleware({ tokenHandler, refreshFactor: 0.5 }).getMiddleware());
     app.use('/products', productController.getRouter());

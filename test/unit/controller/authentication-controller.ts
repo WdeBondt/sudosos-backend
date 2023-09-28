@@ -17,7 +17,7 @@
  */
 import express, { Application } from 'express';
 import { expect, request } from 'chai';
-import { SwaggerSpecification } from 'swagger-model-validator';
+import Validator, { SwaggerSpecification } from 'swagger-model-validator';
 import { Connection } from 'typeorm';
 import { json } from 'body-parser';
 import log4js from 'log4js';
@@ -57,6 +57,7 @@ describe('AuthenticationController', async (): Promise<void> => {
     tokenHandler: TokenHandler,
     roleManager: RoleManager,
     specification: SwaggerSpecification,
+    validator: Validator,
     controller: AuthenticationController,
     user: User,
     user2: User,
@@ -130,9 +131,11 @@ describe('AuthenticationController', async (): Promise<void> => {
     console.log = (message: any, ...additional: any[]) => logger.debug(message, ...additional);
 
     ctx.specification = await Swagger.initialize(ctx.app);
+    ctx.validator = new Validator(ctx.specification);
     ctx.controller = new AuthenticationController({
       specification: ctx.specification,
       roleManager: ctx.roleManager,
+      validator: ctx.validator,
     }, ctx.tokenHandler);
 
     ctx.app.use(json());

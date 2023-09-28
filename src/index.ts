@@ -99,6 +99,7 @@ async function setupRbac(application: Application) {
     {
       specification: application.specification,
       roleManager: application.roleManager,
+      validator: application.validator,
     },
   );
   application.app.use('/v1/rbac', controller.getRouter());
@@ -136,6 +137,7 @@ async function setupAuthentication(tokenHandler: TokenHandler, application: Appl
     {
       specification: application.specification,
       roleManager: application.roleManager,
+      validator: application.validator,
     },
     tokenHandler,
   );
@@ -146,6 +148,7 @@ async function setupAuthentication(tokenHandler: TokenHandler, application: Appl
     {
       specification: application.specification,
       roleManager: application.roleManager,
+      validator: application.validator,
     },
     tokenHandler,
     process.env.GEWISWEB_JWT_SECRET,
@@ -198,6 +201,7 @@ export default async function createApp(): Promise<Application> {
   application.app.use('/v1', new RootController({
     specification: application.specification,
     roleManager: application.roleManager,
+    validator: application.validator,
   }).getRouter());
 
   // Product images
@@ -214,6 +218,7 @@ export default async function createApp(): Promise<Application> {
     {
       specification: application.specification,
       roleManager: application.roleManager,
+      validator: application.validator,
     },
   ).getRouter());
 

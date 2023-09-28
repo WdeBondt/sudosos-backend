@@ -29,10 +29,7 @@ import { asNumber } from '../helpers/validators';
 import { parseRequestPagination } from '../helpers/pagination';
 import {
   addContainerRequestValidators,
-  verifyContainerRequest,
-  verifyCreateContainerRequest,
 } from './request/validators/container-request-spec';
-import { isFail } from '../helpers/specification-validation';
 import {
   CreateContainerParams,
   CreateContainerRequest,
@@ -220,12 +217,6 @@ export default class ContainerController extends BaseController {
         ownerId: body.ownerId ?? req.token.user.id,
       };
 
-      const validation = await verifyCreateContainerRequest(request);
-      if (isFail(validation)) {
-        res.status(400).json(validation.fail.value);
-        return;
-      }
-
       res.json(await ContainerService.createContainer(request));
     } catch (error) {
       this.logger.error('Could not create container:', error);
@@ -288,12 +279,6 @@ export default class ContainerController extends BaseController {
         ...body,
         id: containerId,
       };
-
-      const validation = await verifyContainerRequest(request);
-      if (isFail(validation)) {
-        res.status(400).json(validation.fail.value);
-        return;
-      }
 
       const container = await Container.findOne({ where: { id: containerId } });
       if (!container) {

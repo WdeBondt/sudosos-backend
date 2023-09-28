@@ -55,7 +55,7 @@ export default class RequestValidatorMiddleware {
    * @param next - the express next function to continue processing of the request.
    */
   public async handle(req: RequestWithToken, res: Response, next: Function): Promise<void> {
-    const result = this.specification.validateModel(
+    const result = await this.specification.validateModel(
       this.validator.modelName,
       req.body,
       this.validator.allowBlankTarget,

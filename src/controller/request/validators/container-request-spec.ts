@@ -16,33 +16,13 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import Product from '../../../entity/product/product';
-import {
-  createArrayRule,
-  Specification,
-  toFail,
-  toPass, validateSpecification,
-  ValidationError,
-} from '../../../helpers/specification-validation';
-import {
-  BaseContainerParams,
-  ContainerParams, CreateContainerParams,
-} from '../container-request';
-import stringSpec from './string-spec';
-import { INVALID_PRODUCT_ID, ZERO_LENGTH_STRING } from './validation-errors';
-import { ownerIsOrgan } from './general-validators';
-import Validator, { SwaggerSpecification } from 'swagger-model-validator';
-
-/**
- * Validates that param is either a valid Product ID or ProductRequest
- */
-async function validProductId(name: string, value: number) {
-  const product = await Product.findOne({ where: { id: value } });
-  if (!product) return INVALID_PRODUCT_ID(value);
-  return null;
-}
+import { INVALID_PRODUCT_ID } from './validation-errors';
+import Validator from 'swagger-model-validator';
+import User, { UserType } from '../../../entity/user/user';
 
 async function validProductIds(name: string, value: number[]) {
   const errors: Error[] = [];
+  console.error("ERRORS");
 
   await Promise.all(value.map(async (id: number) => {
     const product = await Product.findOne({ where: { id } });
@@ -59,49 +39,28 @@ function nonZeroString(name: string, value: string) {
   }
   return null;
 }
-//TODO FIX async validation?
+
+async function ownerIsOrgan(name: string, value: number): Promise<Error> {
+  const owner = await User.findOne({ where: { id: value, deleted: false, type: UserType.ORGAN } });
+  if (!owner) return new Error('Owner must be of type ORGAN.');
+  return null;
+}
+
+
 function baseContainerValidators(validator: Validator) {
   validator.addFieldValidator('ContainerParams', 'name', nonZeroString);
   validator.addFieldValidator('ContainerParams', 'products', validProductIds);
 }
 
-/**
- * Specification of a baseContainerRequestSpec
- * Again we use a function since otherwise it tends to resuse internal ValidationErrors.
- */
-const baseContainerRequestSpec: <T extends BaseContainerParams>()
-=> Specification<T, ValidationError> = () => [
-  [stringSpec(), 'name', new ValidationError('Name:')],
-  // Turn our validProduct function into an array subspecification.
-  [[createArrayRule([validProductId])], 'products', new ValidationError('Products:')],
-];
-
-/**
- * Specification of a createContainerRequestSpec
- * Here we check if the owner is actually an Organ or not.
- */
-const createContainerRequestSpec:
-() => Specification<CreateContainerParams, ValidationError> = () => [
-  ...baseContainerRequestSpec<CreateContainerParams>(),
-  [[ownerIsOrgan], 'ownerId', new ValidationError('')],
-];
-
-export async function verifyContainerRequest(containerRequest:
-ContainerParams) {
-  return Promise.resolve(await validateSpecification(
-    containerRequest, baseContainerRequestSpec(),
-  ));
+function createContainerValidators(validator: Validator) {
+  validator.addFieldValidator('CreateContainerRequest', 'name', nonZeroString);
+  validator.addFieldValidator('CreateContainerRequest', 'products', validProductIds);
+  validator.addFieldValidator('CreateContainerRequest', 'ownerId', ownerIsOrgan);
 }
-
-export async function verifyCreateContainerRequest(createContainerRequest:
-CreateContainerParams) {
-  return Promise.resolve(await validateSpecification(
-    createContainerRequest, createContainerRequestSpec(),
-  ));
-}
-
 
 
 export function addContainerRequestValidators(validator: Validator) {
-  validator.addFieldValidator();
+  console.error("added");
+  baseContainerValidators(validator);
+  createContainerValidators(validator);
 }
